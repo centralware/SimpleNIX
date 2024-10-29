@@ -13,3 +13,5 @@ _packaged/noid_: Applets which do not require special privilages
 
 _packaged/nets_:   Additional network based applications (httpd, ftpd, tftpd, etc.)
 
+**TO-DO**: Relocate _configs and _patches; update build to compensate
+
