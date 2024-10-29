@@ -26,6 +26,7 @@ See [build members](https://localhost) for information on how to join the networ
 ## License
 
 **_A Global License model has not yet been and/or may not be implemented_**
+
 Due to the numerous third party applications involved, each having their own licensing scheme, until further notice, all individual
 components will maintain their existing license method(s) and the author's website will be provided for each component where further
 information may be obtained (author name(s), copyright/license and other identifying content.)
