@@ -1,0 +1,299 @@
+#!/bin/sh
+clear; CUR=$(pwd); OLD=$CUR; . /etc/init.d/tc-functions; . ../functions;       ##### TCL
+TITLE="
+${CYAN}        ######
+${CYAN}       ##    ## ####
+${CYAN}       ##        ##  ##     ##
+${CYAN}        ######   ##  ###   ### ########
+${CYAN}             ##  ##  #### #### ##     ## ##
+${CYAN}       ##    ##  ##  ## ### ## ##     ## ##       ########
+${CYAN}        ######   ##  ##     ## ########  ##       ##
+${CYAN}                #### ##     ## ##        ##       ##             ${WHITE}#####
+${CYAN}                     ##     ## ##        ##       ######        ${WHITE}##   ##
+${CYAN}                   #           ##        ##       ##            ${WHITE}# ${BLUE}0 0 ${WHITE}#
+${CYAN}  ######          ###                    ######## ##           ${WHITE}#   ${YELLOW}V   ${WHITE}#
+${CYAN}    ##             #                              ########    ${WHITE}##       ##
+${CYAN}    ##         ###    ### ####   ###    ###  ##### #####     ${WHITE}#           #
+${CYAN}    ##        #  ##    ###    ##  ##     ##    ##   ##      ${WHITE}#             #
+${CYAN}    ##       #   ##    ##     ##  ##     ##      ###        ${WHITE}#  #       #  #
+${CYAN}    ##          ###    ##     ##  ##     ##      ###       ${YELLOW}@@${WHITE}##         ##${YELLOW}@@
+${CYAN}    ##       # ###     ##     ##  ##     ##     ## ##    ${YELLOW}@@@@@@${WHITE}#       #${YELLOW}@@@@@@
+${CYAN}    ##      ## ### #   ##     ##  ###   ###    ##   ##   ${YELLOW}@@@@@@@${WHITE}# ${RED}CDC ${WHITE}#${YELLOW}@@@@@@@
+${CYAN}  ############  ###   ####   ####   #### ### ##### #####   ${YELLOW}@@@@@${WHITE} ##### ${YELLOW}@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+echo "${TITLE}${NORMAL}"; echo; SFX=$(GetProcessorType)
+SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+
+[ -d /tmp/packager/busybox ] && sudo rm /tmp/packager/busybox -fR
+ExtLoadQuiet wget # We need GNU WGET to get started; we'll worry about the others later
+
+### BUSYBOX VERSION MANAGEMENT ###
+echo "${MAGENTA}Downloading BusyBox Release Information${NORMAL}"
+if [ ! -f _version_list ]; then
+    wget -q -O _versions https://www.busybox.net/downloads/
+    cat _versions | grep href | grep "busybox-" | awk -F "href=" '{print $2}' | awk -F ">" '{print $1}' | grep -v ".sign" | grep -v ".bz2.s" | awk -F"\"" '{print $2}' > _version_list
+    rm _versions -f
+fi
+if [ ! -f _bbversion ]; then
+    wget -q -O _bbindex https://www.busybox.net/
+    grep -m1 "(stable" _bbindex | awk -F "BusyBox " '{print $2}' | awk '{print $1}' > _bbversion
+    rm _bbindex -f
+fi
+
+VER=$(cat _bbversion)
+
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                version*)  VER=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                quiet)     vQUIET=1 ;;
+            esac ;;
+    esac
+done
+
+###################################
+### ><><><><>< TO DO ><><><><>< ###
+### Relocate this functionality ###
+###################################
+echo -n "${CYAN}Preparing support extensions:${NORMAL}"
+EXTS="compiletc perl5 ncursesw-dev bash mpc-dev udev-lib-dev texinfo coreutils"
+EXTS="${EXTS} glibc_apps gettext python3.6 elfutils-dev sstrip zsync wget bc"
+EXTS="${EXTS} libmcrypt openresolv libtirpc-dev"
+ExtLoad $EXTS
+
+
+#####################
+# BUSYBOX : PATCHES #
+################################################################################
+mkdir -p $CUR/_patches; cd $CUR/_patches
+echo "${YELLOW}Preparing Patches${NORMAL}"
+[ ! -f patches.lst ] && wget -q https://raw.githubusercontent.com/centralware/SimpleNIX/refs/heads/master/builder/core/busybox/_patches/patches.lst
+for P in $(cat patches.lst)
+do
+    [ ! -f $P ] && wget -q https://raw.githubusercontent.com/centralware/SimpleNIX/refs/heads/master/builder/core/busybox/_patches/${P}
+done
+
+####################
+# BUSYBOX : SOURCE #
+################################################################################
+cd $CUR
+[ ! -f busybox-${VER}.tar.bz2 ] && echo "${YELLOW}Gathering BusyBox ${VER} Source Code${NORMAL}" && wget -q http://www.busybox.net/downloads/busybox-${VER}.tar.bz2
+[ ! -d busybox-${VER} ] && echo "${YELLOW}Extracting BusyBox Source Code${NORMAL}" && tar -jxf busybox-${VER}.tar.bz2
+
+###################################
+### ><><><><>< TO DO ><><><><>< ###
+### Relocate this functionality ###
+###################################
+function patches()
+{
+    for P in $(ls -1 $CUR/_patches/*.patch)
+    do
+        patch -Np1 -i $P >> $CUR/__patch.log 2>&1
+    done
+}
+function setuid()
+{
+    filename=$1
+    sudo chmod u+s $filename
+    sudo chmod g+s $filename
+}
+
+
+#########
+## RPC ##
+[ ! -d /usr/local/include/rpc ] && sudo cp /usr/local/include/tirpc/* /usr/local/include/ -fR
+########################################################################################
+
+
+
+
+
+
+
+
+
+
+##################
+# BUSYBOX : SUID #
+################################################################################
+## STAGE 2 : Create our BusyBox application which requires SUID               ##
+################################################################################
+cd $CUR
+echo "${YELLOW}Preparing Source : SUID${NORMAL}"
+[ ! -d ./bb-suid ] && cp busybox-${VER} bb-suid -afR
+cd bb-suid
+patches
+
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" > blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+
+echo "  ${YELLOW}Applying Configuration : SUID${NORMAL}"
+[ ! -f config_suid ] && wget -q https://raw.githubusercontent.com/centralware/SimpleNIX/refs/heads/master/builder/core/busybox/_configs/config_suid
+[ ! -f ./.config ] && cp config_suid ./.config
+[ ! -f ./.oldconfig ] && make -j$(nproc) oldconfig < blank > $CUR/_suid_config.log 2>&1 && touch ./.oldconfig
+
+echo "  ${YELLOW}Compiling Busybox : SUID${NORMAL}"
+[ ! -f ./.make1 ] && make -j$(nproc) LDLIBS="crypt tirpc" CC="gcc -flto -mtune=generic -Os -pipe" \
+       CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >$CUR/_suid_compile.log 2>&1 && touch ./.make1
+
+echo "  ${YELLOW}Installing Busybox : SUID${NORMAL}"
+make LDLIBS="crypt tirpc" CC="gcc -flto -mtune=generic -Os -pipe" \
+     CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" \
+     CONFIG_PREFIX=/tmp/pkg install >$CUR/_suid_install.log 2>&1
+
+mkdir -p /tmp/packager/busybox/${VER}/suid/bin /tmp/packager/busybox/${VER}/suid/sbin
+
+mv /tmp/pkg/bin/busybox /tmp/packager/busybox/${VER}/suid/bin/
+cd /tmp/packager/busybox/${VER}/suid/bin/
+mv busybox busybox.suid
+strip -s busybox.suid
+
+setuid busybox.suid
+ln -s busybox.suid login
+ln -s busybox.suid mount
+ln -s busybox.suid ping
+ln -s busybox.suid ping6
+ln -s busybox.suid su
+ln -s busybox.suid umount
+ln -s busybox.suid crontab
+ln -s busybox.suid getfattr
+ln -s busybox.suid passwd
+ln -s busybox.suid tracert
+ln -s busybox.suid vlock
+
+cd ../sbin
+ln -s ../bin/busybox.suid fstrim
+
+sudo rm /tmp/pkg -fR
+
+
+
+
+
+
+
+
+
+
+####################
+##### NON-SUID #####
+####################
+cd $CUR
+echo "${YELLOW}Preparing Source : NOID${NORMAL}"
+[ ! -d ./bb-noid ] && cp busybox-${VER} bb-noid -afR
+cd bb-noid
+patches
+
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" > blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+
+echo "  ${YELLOW}Applying Configuration : NOID${NORMAL}"
+[ ! -f config_nosuid ] && wget -q https://raw.githubusercontent.com/centralware/SimpleNIX/refs/heads/master/builder/core/busybox/_configs/config_nosuid
+[ ! -f ./.config ] && cp config_nosuid ./.config
+[ ! -f ./.oldconfig ] && make -j$(nproc) oldconfig < blank > $CUR/_noid_config.log 2>&1 && touch ./.oldconfig
+
+[ ! -f ./.make1 ] && make -j$(nproc) LDLIBS="crypt m" CC="gcc -flto -mtune=generic -Os -pipe" \
+    CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >$CUR/_noid_compile.log 2>&1 && touch ./.make1
+
+make LDLIBS="crypt m" CC="gcc -flto -mtune=generic -Os -pipe" \
+    CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" \
+    CONFIG_PREFIX=/tmp/packager/busybox/${VER}/nosuid install >$CUR/_noid_install.log 2>&1
+
+
+
+
+
+
+
+
+
+
+##########################
+##### BUSYBOX - NETS #####
+##########################
+cd $CUR
+echo "${YELLOW}Preparing Source : NETS${NORMAL}"
+[ ! -d ./bb-nets ] && cp busybox-${VER} bb-nets -afR
+cd bb-nets
+patches
+
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" > blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> blank
+
+echo "  ${YELLOW}Applying Configuration : NETS${NORMAL}"
+[ ! -f config_nets ] && wget -q https://raw.githubusercontent.com/centralware/SimpleNIX/refs/heads/master/builder/core/busybox/_configs/config_nets
+[ ! -f ./.config ] && cp config_nets ./.config
+[ ! -f ./.oldconfig ] && make -j$(nproc) oldconfig < blank > $CUR/_nets_config.log 2>&1 && touch ./.oldconfig
+
+[ ! -f ./.make1 ] && make -j$(nproc) LDLIBS="crypt" CC="gcc -flto -mtune=generic -Os -pipe" \
+       CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >$CUR/_nets_compile.log 2>&1 && touch ./.make1
+
+make LDLIBS="crypt" CC="gcc -flto -mtune=generic -Os -pipe" \
+     CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" \
+     CONFIG_PREFIX=/tmp/netbuild install >$CUR/_nets_install.log 2>&1
+
+mkdir -p /tmp/packager/busybox/${VER}/nets/bin
+
+mv /tmp/netbuild/bin/busybox /tmp/packager/busybox/${VER}/nets/bin/
+cd /tmp/packager/busybox/${VER}/nets/bin/
+mv busybox busybox.nets
+strip -s busybox.nets
+
+mkdir -p ../usr/sbin ../usr/bin
+
+cd ../usr/bin
+ln -s ../../bin/busybox.nets ftpget
+ln -s ../../bin/busybox.nets ftpput
+ln -s ../../bin/busybox.nets tcpsvd
+ln -s ../../bin/busybox.nets tftp
+ln -s ../../bin/busybox.nets udpsvd
+ln -s ../../bin/busybox.nets whois
+
+cd ../sbin
+ln -s ../../bin/busybox.nets dnsd
+ln -s ../../bin/busybox.nets ether-wake
+ln -s ../../bin/busybox.nets ftpd
+ln -s ../../bin/busybox.nets httpd
+ln -s ../../bin/busybox.nets ntpd
+ln -s ../../bin/busybox.nets tftpd
+
+sudo rm /tmp/netbuild -fR
+
+
+
+
+
+
+
+
+
+
+###################
+##### COMBINE #####
+###################
+echo "${MAGENTA}PACKAGING BUSYBOX${NORMAL}"
+
+cd $CUR
+mkdir -p packaged; sudo rm packaged -fR; mkdir -p packaged
+sudo cp /tmp/packager/busybox/* $CUR/packaged/ -fR
