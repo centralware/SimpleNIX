@@ -1,0 +1,74 @@
+#!/bin/sh
+clear; CUR=$(pwd); . /etc/init.d/tc-functions
+. ../functions.sh; GetProcessorType; export CFLAGS CXXFLAGS LDFLAGS
+SFX="x86"
+case $(uname -m) in
+    x86_64) SFX="x64"  ;;
+    armv*)  SFX="arm"  ;;
+    aarch*) SFX="arch" ;;
+    *)      SFX="misc" ;;
+esac
+
+
+
+
+
+APP="vblade"
+VER="25"
+
+echo
+echo "${MAGENTA}${APP} ${CYAN}Version ${VER} ${SFX}${NORMAL}"
+echo -n "${WHITE}Support Extensions: ${NORMAL}"
+
+EXTS="compiletc squashfs-tools"
+for EXT in $EXTS
+do
+    echo -n "${EXT} "
+    su -c "tce-load -w $EXT >/dev/null" tc
+    su -c "tce-load -i $EXT >/dev/null" tc
+done
+echo
+
+
+### SOURCE ARCHIVE ###
+[ ! -f ${APP}-${VER}.zip ] && wget https://github.com/OpenAoE/${APP}/archive/refs/tags/${APP}-${VER}.zip
+[ ! -d ${APP}_${VER}_${SFX} ] && unzip ${APP}-${VER}.zip && mv ${APP}-${APP}-${VER} ${APP}_${VER}_${SFX}
+[ ! -f ${APP}-${VER}.sns ] && cd $CUR/${APP}_${VER}_${SFX} && mksquashfs $CUR/${APP}_${VER}_${SFX} $CUR/${APP}_${VER}.sns
+
+cd $CUR/${APP}_${VER}_${SFX}
+make || exit 1
+strip --strip-all $CUR/${APP}_${VER}_${SFX}/${APP}
+
+mkdir -p /tmp/build/${APP}/usr/local/bin
+mkdir -p /tmp/build/${APP}/usr/local/sbin
+
+cp $CUR/${APP}_${VER}_${SFX}/vblade /tmp/build/${APP}/usr/local/sbin/
+cp $CUR/${APP}_${VER}_${SFX}/vbladed /tmp/build/${APP}/usr/local/sbin/
+cp $CUR/${APP}_${VER}_${SFX}/sparsefile /tmp/build/${APP}/usr/local/bin/
+
+cd /tmp/build/${APP}
+mksquashfs /tmp/build/${APP} $CUR/${APP}_${VER}_${SFX}.snx
+cd $CUR
+md5sum ${APP}_${VER}_${SFX}.snx > $CUR/${APP}_${VER}_${SFX}.md5
+SIZE=$(ls -la $CUR/${APP}_${VER}_${SFX}.snx | awk '{print $5}')
+[ $SIZE -gt 1024 ] && SZX="KB" && SIZE=$(expr $SIZE / 1024)
+[ $SIZE -gt 1024 ] && SZX="MB" && SIZE=$(expr $SIZE / 1024)
+[ $SIZE -gt 1024 ] && SZX="GB" && SIZE=$(expr $SIZE / 1024)
+
+FN=$CUR/${APP}_${VER}_${SFX}.info
+echo "Title:          $APP.tcz" > $FN
+echo "Description:    $APP ATA Over Ethernet Daemon" >> $FN
+echo "Version:        $VER" >> $FN
+echo "Author:         Ed Cashin, Anderw Basterfield" >> $FN
+echo "Original-site:  http://github.com/OpenAoE" >> $FN
+echo "Copying-policy: Copyright (C) 2005 to Current" >> $FN
+echo "Size:           $SIZE $SZX" >> $FN
+echo "Extension_by:   CentralWare Development Centers" >> $FN
+echo "Tags:           ATA Over Ethernet AoE" >> $FN
+echo "Comments:       Compiled With SimpleNix $(version) kernel $(uname -r | awk -F- '{print $1}') ${SFX}" >> $FN
+echo "Current:        $(date '+%F%n') by CentralWare" >> $FN
+echo "Change-log:     ----" >> $FN
+
+cd /tmp/build/${APP}
+find . -type f > $CUR/${APP}_${VER}_${SFX}.files
+sed -i 's/.\/usr/\/usr/g' $CUR/${APP}_${VER}_${SFX}.files

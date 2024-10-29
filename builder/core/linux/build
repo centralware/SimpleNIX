@@ -1,0 +1,83 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions
+
+ExtLoadQuiet wget
+
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                version*)  VER=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                quiet)     vQUIET=1 ;;
+            esac ;;
+    esac
+done
+
+#######################
+### VERSION SCRAPER ###
+################################################################################
+[ -f versions ] && rm versions -f
+if [ "${VER}" == "" ]; then
+    wget -O versions http://www.kernel.org/finger_banner
+    VER=$(cat versions | grep "stable version" | awk -F: '{print $2}'); VER=$(echo $VER)
+fi
+PRE=$(echo $VER | awk -F. '{print $1}')
+################################################################################
+CPU=$(GetProcessorType); PLT="64"; [ "$(echo $CPU | grep 64)" == "" ] && PLT=""
+
+clear
+echo "${WHITE}SimpleNIX Builder${NORMAL}"
+echo "${WHITE}=================${NORMAL}"
+echo
+echo "${CYAN}Project:                   ${GREEN}KERNEL ${MAGENTA}v${VER}${NORMAL}"
+echo "${CYAN}Platform:                  ${GREEN}${CPU}${NORMAL}"
+echo
+
+##############
+### KERNEL ###
+################################################################################
+cd $CUR; ExtClean; echo -n "${WHITE}Preparing compilation extensions"
+ExtLoad wget compiletc perl5 ncursesw-dev bash mpc-dev udev-lib-dev texinfo coreutils glibc_apps gettext python3.6 elfutils-dev zsync
+if [ ! -f linux-${VER}.tar.xz ]; then
+    echo "${YELLOW}Downloading source code${NORMAL}"
+    cd $CUR; wget --no-check-certificate https://cdn.kernel.org/pub/linux/kernel/v${PRE}.x/linux-${VER}.tar.xz || exit 1
+fi
+if [ ! -d linux-${VER} ]; then
+    echo "${YELLOW}Extracting Kernel Source${NORMAL}"
+    tar -xf linux-${VER}.tar.xz || exit 1
+fi
+if [ ! -f config ]; then
+    echo "${YELLOW}Downloading Kernel Config ${PLT}${NORMAL}"
+    wget --no-check-certificate -q -O config-${VER}-simplenix${PLT} $(cat /opt/tcemirror)/14.x/${CPU}/release/src/kernel/config-6.1.2-tinycore${PLT}
+#    mv config-6.1.2-tinycore${PLT} config
+fi
+
+#if [ ! -d patches ]; then
+#    echo "${YELLOW}Downloading Kernel Patches${NORMAL}"
+#    mkdir $CUR/patches
+#    cd $CUR/patches
+#    wget -q --mirror --no-parent --no-check-certificate -nH --level=1 --cut-dirs=8 $(cat /opt/tcemirror)/14.x/x86_64/release/src/kernel/6.1-patches/ || exit 1
+#    cd $CUR
+#fi
+################################################################################
+cd $CUR; [ ! -f linux-${VER}/.config ] && cp config linux-${VER}/.config
+echo "${YELLOW}Configuring kernel${NORMAL}"
+cd linux-${VER}
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" > ./.blanks
+[ ! -f ./.config.ready ] && make oldconfig < ./.blanks > $CUR/_config.log 2>&1 && touch ./.config.ready
+echo "${YELLOW}Compiling kernel${NORMAL}"
+[ ! -f ./.compiled ] && time make -j40 bzImage > $CUR/_kernel.log 2>&1 && touch ./.compiled
+[ ! -f ./.modules ] && time make -j40 modules > $CUR/_modules.log 2>&1 && touch ./.modules
+[ ! -d $CUR/modules ] && make INSTALL_MOD_PATH="$CUR/modules/usr/local" modules_install > $CUR/_modinst.log
+echo "${YELLOW}Sorting Modules${NORMAL}"
+cd $CUR; [ ! -f sorter.sh ] && wget https://raw.githubusercontent.com/tinycorelinux/sorter/refs/heads/master/sorter.sh && chmod +x sorter.sh
+mkdir -p $CUR/output; cd $CUR/output
+$CUR/sorter.sh ${VER}-tinycore64 $CUR/modules > $CUR/_sorter.log
+
+cd $CUR; rm config -f; cp linux-${VER}/.config $CUR/config
+################################################################################
+

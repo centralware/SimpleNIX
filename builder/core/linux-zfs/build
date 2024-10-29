@@ -1,0 +1,140 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions
+
+################
+## ./build kernel=6.1.2 version=2.1.15
+##
+## * ZFS VERSION will be what ever CURRENT is if not specified
+## * ZFS VERSION MUST be 2.0.x or newer - 0.x.x is not supported
+##   and 1.x.x doesn't seem to exist on OpenZFS' website??
+## * KERNEL VERSION will be what ever CURRENT is if not specified
+## * KERNEL PATH must be THIS_PATH/../KERNEL-VERSION
+## * If KERNEL is not already compiled, it will be treated as NEW
+##
+
+ExtLoad compiletc perl5 ncursesw-dev bc bash mpc-dev udev-lib-dev texinfo coreutils glibc_apps gettext python3.6 elfutils-dev zsync wget automake autoconf libtirpc-dev libtool-dev pkg-config openssl-dev
+
+MAIN="https://github.com/openzfs/zfs/releases/download/zfs-[VER]/zfs-[VER].tar.gz"
+DOWN="https://github.com/openzfs/zfs/archive/refs/tags/zfs-[VER].tar.gz"
+
+## Let's get the CURRENT and LONG TERM versions from website
+[ ! -f index ] && wget -q --no-check-certificate -O index https://zfsonlinux.org
+cat index | grep download | grep -v sig | grep -v sha256 | grep -v "spl-" | awk -F "href=" '{print $2}' | awk -F ">" '{print $1}' | awk -F "\"" '{print $2}' > versions
+cat versions | awk -F "/" '{print $9}' > files
+
+VERSION=""; [ -f _zfslist ] && rm _zfslist -f
+for file in $(cat files)
+do
+    file=${file/.tar.gz/}; file=${file/zfs-/}
+    digit=$(echo $file | awk -F. '{print $1}')
+    if [ $digit -gt 1 ]; then
+        echo "${file}:::$(cat versions | grep ${file})" >> _zfslist
+        if [ "${VERSION}" == "" ]; then VERSION=${file}; fi
+    fi
+done
+rm versions -f; rm files -f
+rm index -f
+
+### KERNEL VERSION ###
+[ ! -f _kernels ] && wget -q -O _kernels http://www.kernel.org/finger_banner
+KERNEL=$(cat _kernels | grep "stable version" | awk -F: '{print $2}'); KERNEL=$(echo $KERNEL)
+PREFIX=$(echo $KERNEL | awk -F. '{print $1}')
+
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                kernel*)  KERNEL=${i#*=} ;;
+                version*) VERSION=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                quiet)     vQUIET=1 ;;
+            esac ;;
+    esac
+done
+
+clear
+CPU=$(GetProcessorType); PLT="64"; [ "$(echo $CPU | grep 64)" == "" ] && PLT=""
+echo "${CYAN}OpenZFS ${WHITE}::: ${YELLOW}ZFS For Linux${NORMAL}"
+echo "${WHITE}=========================${NORMAL}"
+echo "${MAGENTA}ZFS VER${NORMAL}:  ${GREEN}v$VERSION${NORMAL}"
+echo "${MAGENTA}KERNEL${NORMAL} :  ${GREEN}v$KERNEL ${CYAN}${CPU}${NORMAL}"
+
+### Let's take care of ZFS sources first
+echo ""
+echo "${YELLOW}Gathering ZFS Source Code${NORMAL}"
+FILE="zfs-${VERSION}.tar.gz"
+URL=${MAIN//\[VER\]/$VERSION}
+[ ! -f $FILE ] && wget -q --no-check-certificate $URL
+[ ! -f $FILE ] && echo "${MAGENTA}Cannot find ${YELLOW}${FILE} ${MAGENTA}at ${YELLOW}${URL}${NORMAL}" && exit 1
+URL=${DOWN//\[VER\]/$VERSION}
+[ ! -f $FILE ] && wget -q --no-check-certificate $URL
+[ ! -f $FILE ] && echo "${MAGENTA}Cannot find ${YELLOW}${FILE} ${MAGENTA}at ${YELLOW}${URL}${NORMAL}" && exit 1
+PTH=${FILE/.tar.gz/}
+[ ! -d ${PTH} ] && echo "${YELLOW}Extracting ZFS Source Code${NORMAL}" && tar -zxf ${FILE}
+
+### Let's check to see if our kernel source is also ready
+if [ ! -d ../kernel-${KERNEL} ]; then
+    # Download kernel source
+    if [ ! -f linux-${KERNEL}.tar.xz ]; then
+        echo "${YELLOW}Downloading Kernel v${KERNEL} Source Code${NORMAL}"
+        wget -q --no-check-certificate https://cdn.kernel.org/pub/linux/kernel/v${PREFIX}.x/linux-${KERNEL}.tar.xz || exit 1
+    fi
+    # Extract kernel source
+    if [ ! -d ../linux-${KERNEL} ]; then
+        echo "${YELLOW}Extracting Kernel v${KERNEL} Source Code${NORMAL}"
+        cd $CUR/..; tar -xf $CUR/linux-${KERNEL}.tar.xz || exit 1
+    fi
+fi
+
+### Kernel Configuration
+if [ ! -f $CUR/../linux-${KERNEL}/.config ]; then
+    ##### TODO: REPLACE WITH SIMPLENIX CONFIG #####
+    cd $CUR
+    wget -q -O tmp_cfg --no-check-certificate $(cat /opt/tcemirror)/14.x/${CPU}/release/src/kernel/
+    FILE=$(cat tmp_cfg | grep "config-" | awk -F "href=" '{print $2}' | awk '{print $1}')
+    FILE=${FILE//\'/}
+    wget -q --no-check-certificate -O linux-${KERNEL}-config $(cat /opt/tcemirror)/14.x/${CPU}/release/src/kernel/${FILE}
+    cp $CUR/linux-${KERNEL}-config $CUR/../linux-${KERNEL}/.config
+    rm tmp_cfg -f
+fi
+if [ ! -f $CUR/../linux-${KERNEL}/.config ]; then
+    echo "${RED}ERROR! ${MAGENTA}Kernel configuration file failed!${NORMAL}"
+    exit 1
+fi
+cp $CUR/../linux-${KERNEL}/.config $CUR/linux-${KERNEL}-config
+
+### KERNEL COMPILATION ###
+cd $CUR/../linux-${KERNEL}
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" > ./.blanks
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> ./.blanks
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> ./.blanks
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" >> ./.blanks
+echo "${YELLOW}Configuring kernel${NORMAL}"
+[ ! -f ./.config.ready ] && time make oldconfig < ./.blanks > $CUR/_kernel_config.log 2>&1 && touch ./.config.ready
+echo "${YELLOW}Compiling kernel${NORMAL}"
+[ ! -f ./.compiled ] && time make -j$(nproc) bzImage > $CUR/_kernel_compile.log 2>&1 && touch ./.compiled
+echo "${YELLOW}Compiling modules${NORMAL}"
+[ ! -f ./.modules ] && time make -j$(nproc) modules > $CUR/_kernel_modules.log 2>&1 && touch ./.modules
+
+
+
+
+### ZFS
+echo "${YELLOW}Configuring ZFS${NORMAL}"
+cd $CUR/zfs-$VERSION || exit 1
+if [ ! -f ./configure ]; then
+    sh autogen.sh > $CUR/_zfs_autogen.log || exit 1
+fi
+time ./configure --with-linux=$CUR/../linux-${KERNEL} --prefix=/usr/local > $CUR/_zfs_configure.log || exit 1
+
+#make clean
+
+echo "${YELLOW}Compiling ZFS${NORMAL}"
+mkdir -p /tmp/zfs_v${VERSION}_k${KERNEL}
+make -s -j$(nproc) > $CUR/_zfs_compile.log  || exit 1
+make DESTDIR=/tmp/zfs_v${VERSION}_k${KERNEL} install > $CUR/_zfs_install.log 
+#sudo mv /tmp/zfs_v${VERSION}_k${KERNEL} $CUR/
+mv /tmp/zfs_v${VERSION}_k${KERNEL} $CUR/

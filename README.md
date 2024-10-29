@@ -1,6 +1,6 @@
 # Simple Linux Build Center
 
-[Simple Linux Build Center](https://localhost) The Build Center is where it all comes together!
+[Simple Linux](https://users.simplenix.com/forum) The Build Center is where it all comes together!
 
 > [!IMPORTANT]
 > The Build Center is just getting off the ground and is looking for developers and application authors!
@@ -21,7 +21,7 @@ We aim to build a complete, automated and networked build system from the kernel
 
 ## How can I help?
 
-See [build members](https://localhost) for information on how to join the network.
+See [build members](https://users.simplenix.com/forum) for information on how to join the network.
 
 ## License
 
