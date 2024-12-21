@@ -1,0 +1,256 @@
+#!/bin/sh
+. /etc/system/functions; doroot
+GetProcessorType
+CUR=$(pwd)
+clear
+
+VER=1.30.0
+
+#############################
+###                       ###
+##   CONVERT TO TEMPLATE   ##
+###                       ###
+#############################
+
+[ -d /tmp/pkg ] && sudo rm /tmp/pkg -fR
+[ -d /tmp/bb ] && sudo rm /tmp/bb -fR
+[ -d /tmp/bbfinal ] && sudo rm /tmp/bbfinal -fR
+
+echo -n "${CYAN}Preparing support extensions${NORMAL}"; EXTS="compiletc perl5 ncursesw-dev bash mpc-dev udev-lib-dev texinfo"; ExtLoad $EXTS
+echo -n "${CYAN}Preparing support extensions${NORMAL}"; EXTS="coreutils glibc_apps gettext python3.6 elfutils-dev sstrip zsync"; ExtLoad $EXTS
+echo -n "${CYAN}Preparing support extensions${NORMAL}"; EXTS="wget bc libmcrypt openresolv libtirpc-dev squashfs-tools"; ExtLoad $EXTS
+
+
+
+get_version()
+{
+    echo "Downloading release information"
+    if [ ! -f _version_list ]; then
+        wget -q -O _versions https://www.busybox.net/downloads/
+        cat _versions | grep href | grep "busybox-" | awk -F "href=" '{print $2}' | awk -F ">" '{print $1}' | \
+            grep -v ".sign" | grep -v ".bz2.s" | grep -v snapshot | awk -F"\"" '{print $2}' > _version_list
+        rm _versions -f
+    fi
+
+    if [ ! -f _bbversion ]; then
+        wget -q -O _bbindex https://www.busybox.net/
+        grep -m1 "(stable" _bbindex | awk -F "BusyBox " '{print $2}' | awk '{print $1}' > _bbversion
+        rm _bbindex -f
+    fi
+}
+
+get_version
+VER=$(cat _bbversion)
+
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VER=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                quiet)     vQUIET=1 ;;
+            esac ;;
+    esac
+done
+
+
+
+if [ ! -d $CUR/live ]; then
+    mkdir -p $CUR/live; cd $CUR/live
+    echo "${CYAN}Downloading source tarball${NORMAL} v${VER}"
+#    wget --mirror --no-parent --cut-dirs=6 -nH $(cat /opt/tcemirror)/14.x/x86_64/release/src/
+    wget http://www.busybox.net/downloads/busybox-${VER}.tar.bz2 >> $CUR/_compile.log 2>&1 || exit 1
+fi
+
+function setuid()
+{
+    filename=$1
+    sudo chmod u+s $filename
+    sudo chmod g+s $filename
+}
+
+## RPC ##
+[ ! -d /usr/local/include/rpc ] && cp /usr/local/include/tirpc/* /usr/local/include/ -fR
+
+##########################
+##### BUSYBOX - SUID #####
+##########################
+cd $CUR/live
+[ -d $CUR/live/busybox-${VER} ] && sudo rm $CUR/live/busybox-${VER} -fR
+[ ! -d busybox-${VER} ] && tar -xf busybox-${VER}.tar.bz2
+
+cd $CUR/live/busybox-${VER}
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" > blank
+
+echo -n "  Applying Patches..."
+echo "Applying Patches : SUID" >> $CUR/_compile.log 2>&1
+echo "=======================" >> $CUR/_compile.log 2>&1
+patch -Np1 -i $CUR/_patches/*.patch >> $CUR/_compile.log 2>&1; echo
+
+echo -n "  Applying Configuration : SUID"
+cp $CUR/_config/config_suid $CUR/live/busybox-${VER}/.config
+if [ ! -f $CUR/live/busybox-${VER}/.oldconfig ]; then
+    make -j$(nproc) oldconfig < blank >> $CUR/_compile.log 2>&1 || exit 1
+    touch $CUR/live/busybox-${VER}/.oldconfig
+fi
+echo
+
+if [ ! -f $CUR/live/busybox-${VER}/.make1 ]; then
+    make -j$(nproc) LDLIBS="crypt tirpc" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >> $CUR/_compile.log 2>&1 || exit 1
+    touch $CUR/live/busybox-${VER}/.make1
+fi
+mkdir -p /tmp/pkg; sudo rm /tmp/pkg -fR; mkdir -p /tmp/pkg
+
+sudo make LDLIBS="crypt tirpc" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" CONFIG_PREFIX=/tmp/pkg install >> $CUR/_compile.log 2>&1 || exit 1
+
+mkdir -p /tmp/pkg_suid; sudo rm /tmp/pkg_suid -fR; mkdir -p /tmp/pkg_suid/bin /tmp/pkg_suid/sbin
+
+sudo mv /tmp/pkg/bin/busybox /tmp/pkg_suid/bin
+cd /tmp/pkg_suid/bin; sudo mv busybox busybox.suid
+#strip -s busybox.suid
+
+setuid busybox.suid
+ln -s busybox.suid login
+ln -s busybox.suid mount
+ln -s busybox.suid ping
+ln -s busybox.suid ping6
+ln -s busybox.suid su
+ln -s busybox.suid umount
+ln -s busybox.suid crontab
+ln -s busybox.suid getfattr
+ln -s busybox.suid passwd
+ln -s busybox.suid tracert
+ln -s busybox.suid vlock
+
+cd ../sbin
+ln -s ../bin/busybox.suid fstrim
+
+
+
+
+
+
+
+
+
+
+
+
+####################
+##### NON-SUID #####
+####################
+cd $CUR/live
+[ -d $CUR/live/busybox-${VER} ] && sudo rm $CUR/live/busybox-${VER} -fR
+[ ! -d busybox-${VER} ] && tar -xf busybox-${VER}.tar.bz2
+
+cd $CUR/live/busybox-${VER}
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" > blank
+
+echo -n "  Applying Patches..."
+echo "Applying Patches : NOSUID" >> $CUR/_compile.log 2>&1
+echo "=========================" >> $CUR/_compile.log 2>&1
+patch -Np1 -i $CUR/_patches/*.patch >> $CUR/_compile.log 2>&1; echo
+#patch -Np1 -i $CUR/_patches/*.patch; echo; echo
+
+#echo "  Applying Patches..."
+#patch -Np1 -i ../busybox/busybox-1.27.1-wget-make-default-timeout-configurable.patch >/dev/null 2>&1
+#patch -Np1 -i ../busybox/busybox-1.29.3_root_path.patch >/dev/null 2>&1
+#patch -Np1 -i ../busybox/busybox-1.33.0_modprobe.patch >/dev/null 2>&1
+#patch -Np0 -i ../busybox/busybox-1.33.0_tc_depmod.patch >/dev/null 2>&1
+#echo; echo; echo
+
+echo -n "  Applying Configuration : NOSUID"
+cp $CUR/_config/config_nosuid $CUR/live/busybox-${VER}/.config
+if [ ! -f $CUR/live/busybox-${VER}/.oldconfig ]; then
+    make -j$(nproc) oldconfig < blank >> $CUR/_compile.log 2>&1 || exit 1
+    touch $CUR/live/busybox-${VER}/.oldconfig
+fi
+echo
+
+if [ ! -f $CUR/live/busybox-${VER}/.make1 ]; then
+    make -j$(nproc) LDLIBS="crypt m" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >> $CUR/_compile.log 2>&1 || exit 1
+    touch $CUR/live/busybox-${VER}/.make1
+fi
+mkdir -p /tmp/pkg; sudo rm /tmp/pkg -fR; mkdir -p /tmp/pkg
+sudo make LDLIBS="crypt m" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" CONFIG_PREFIX=/tmp/pkg_nosuid install >> $CUR/_compile.log 2>&1 || exit 1
+
+
+
+
+
+#######################
+##### BUSYBOX-NET #####
+#######################
+cd $CUR/live
+[ -d $CUR/live/busybox-${VER} ] && sudo rm $CUR/live/busybox-${VER} -fR
+[ ! -d busybox-${VER} ] && tar -xf busybox-${VER}.tar.bz2
+
+cd $CUR/live/busybox-${VER}
+echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" > blank
+
+echo -n "  Applying Patches..."
+echo "Applying Patches : NET" >> $CUR/_compile.log 2>&1
+echo "======================" >> $CUR/_compile.log 2>&1
+patch -Np1 -i $CUR/_patches/*.patch >> $CUR/_compile.log 2>&1; echo
+#patch -Np1 -i $CUR/_patches/*.patch; echo; echo
+
+#echo "  Applying Patches..."
+#patch -Np1 -i ../busybox/busybox-1.27.1-wget-make-default-timeout-configurable.patch >/dev/null 2>&1
+#patch -Np1 -i ../busybox/busybox-1.29.3_root_path.patch >/dev/null 2>&1
+#patch -Np1 -i ../busybox/busybox-1.33.0_modprobe.patch >/dev/null 2>&1
+#patch -Np0 -i ../busybox/busybox-1.33.0_tc_depmod.patch >/dev/null 2>&1
+#echo; echo; echo
+
+echo "  Applying Configuration : NET"
+cp $CUR/_config/config_net $CUR/live/busybox-${VER}/.config
+
+if [ ! -f $CUR/live/busybox-${VER}/.make1 ]; then
+    make -j$(nproc) LDLIBS="crypt" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >> $CUR/_compile.log 2>&1 || exit 1
+    touch $CUR/live/busybox-${VER}/.make1
+fi
+
+sed -i 's/-j9/-j$(nproc)/g' make_single_applets.sh
+sh make_single_applets.sh >> $CUR/_compile.log 2>&1 || exit 1
+
+mkdir -p /tmp/pkg_net/usr/local/bin /tmp/pkg_net/usr/local/sbin
+
+mv busybox_ETHER_WAKE /tmp/pkg_net/usr/local/bin/wake; setuid /tmp/pkg_net/usr/local/bin/wake
+mv busybox_FTPGET /tmp/pkg_net/usr/local/bin/ftpget; setuid /tmp/pkg_net/usr/local/bin/ftpget
+mv busybox_FTPPUT /tmp/pkg_net/usr/local/bin/ftpput; setuid /tmp/pkg_net/usr/local/bin/ftpput
+mv busybox_TFTP /tmp/pkg_net/usr/local/bin/tftp; setuid /tmp/pkg_net/usr/local/bin/tftp
+
+mv busybox_FTPD /tmp/pkg_net/usr/local/sbin/ftpd; setuid /tmp/pkg_net/usr/local/sbin/ftpd
+mv busybox_HTTPD /tmp/pkg_net/usr/local/sbin/httpd; setuid /tmp/pkg_net/usr/local/sbin/httpd
+mv busybox_IFENSLAVE /tmp/pkg_net/usr/local/sbin/ifenslave; setuid /tmp/pkg_net/usr/local/sbin/ifenslave
+mv busybox_NTPD /tmp/pkg_net/usr/local/sbin/ntpd; setuid /tmp/pkg_net/usr/local/sbin/ntpd
+mv busybox_TCPSVD /tmp/pkg_net/usr/local/sbin/tcpd; setuid /tmp/pkg_net/usr/local/sbin/tcpd
+mv busybox_TFTPD /tmp/pkg_net/usr/local/sbin/tftpd; setuid /tmp/pkg_net/usr/local/sbin/tftpd
+mv busybox_UDPSVD /tmp/pkg_net/usr/local/sbin/udpd; setuid /tmp/pkg_net/usr/local/sbin/udpd
+
+
+
+
+
+###################
+##### COMBINE #####
+###################
+sync; sync; sleep 1; sync; sync
+echo
+echo "PACKAGING BUSYBOX"
+
+mkdir -p $CUR/package; sudo rm $CUR/package -fR; mkdir -p $CUR/package
+sudo cp /tmp/pkg_net/* $CUR/package/ -fR
+sudo cp /tmp/pkg_suid/* $CUR/package/ -fR
+sudo cp /tmp/pkg_nosuid/* $CUR/package/ -fR
+
+sudo rm /tmp/pkg -fR >/dev/null 2>&1
+sudo rm /tmp/pkg_net -fR >/dev/null 2>&1
+sudo rm /tmp/pkg_suid -fR >/dev/null 2>&1
+sudo rm /tmp/pkg_nosuid -fR >/dev/null 2>&1
+
+
+cd $CUR
+mksquashfs package $CUR/busybox~~${VER}~~${CPU}.nix >> $CUR/_compile.log 2>&1
