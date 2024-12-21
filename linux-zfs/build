@@ -1,0 +1,326 @@
+#!/bin/sh
+TITLE="
+        ######
+       ##    ## ####
+       ##        ##  ##     ##
+        ######   ##  ###   ### ########
+             ##  ##  #### #### ##     ## ##
+       ##    ##  ##  ## ### ## ##     ## ##       ########
+        ######   ##  ##     ## ########  ##       ##
+                #### ##     ## ##        ##       ##             #####
+                     ##     ## ##        ##       ######        ##   ##
+                   #           ##        ##       ##            # 0 0 #
+  ######          ###                    ######## ##            #  V   #
+    ##             #                              ########    ##       ##
+    ##         ###    ### ####   ###    ###  ##### #####     #          ##
+    ##        #  ##    ###    ##  ##     ##    ##   ##      #            ##
+    ##       #   ##    ##     ##  ##     ##      ###        #  #      #  ###
+    ##          ###    ##     ##  ##     ##      ###       @@##        # #@@
+    ##       # ###     ##     ##  ##     ##     ## ##    @@@@@@#       #@@@@@@
+    ##      ## ### #   ##     ##  ###   ###    ##   ##   @@@@@@@# CDC #@@@@@@@
+  ############  ###   ####   ####   #### ### ##### #####   @@@@@#######@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+clear; CUR=$(pwd); OLD=$CUR; . /etc/init.d/tc-functions; . ../functions;       ##### TCL
+echo "${CYAN}${TITLE}${NORMAL}"; echo; SFX=$(GetProcessorType)
+SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+
+  #############################
+ #/ LINUX - ZFS File System /#
+################################################################################
+# DESCRIPTION TO BE ADDED
+################################################################################
+
+ExtLoadQuiet wget
+
+CPU=$(GetProcessorType); PLT="64"; [ "$(echo $CPU | grep 64)" == "" ] && PLT=""
+echo "${CYAN}OpenZFS ${WHITE}::: ${YELLOW}ZFS For Linux${NORMAL}"
+echo "${WHITE}=========================${NORMAL}"
+
+MAIN="https://github.com/openzfs/zfs/releases/download/zfs-[VER]/zfs-[VER].tar.gz"
+DOWN="https://github.com/openzfs/zfs/archive/refs/tags/zfs-[VER].tar.gz"
+
+## Let's get the CURRENT and LONG TERM versions from website
+[ ! -f index ] && wget -q --no-check-certificate -O index https://zfsonlinux.org
+cat index | grep download | grep -v sig | grep -v sha256 | grep -v "spl-" | awk -F "href=" '{print $2}' | awk -F ">" '{print $1}' | awk -F "\"" '{print $2}' > versions
+cat versions | awk -F "/" '{print $9}' > files
+
+VERSION=""; [ -f _zfslist ] && rm _zfslist -f
+for file in $(cat files)
+do
+    file=${file/.tar.gz/}; file=${file/zfs-/}
+    digit=$(echo $file | awk -F. '{print $1}')
+    if [ $digit -gt 1 ]; then
+        echo "${file}:::$(cat versions | grep ${file})" >> _zfslist
+        if [ "${VERSION}" == "" ]; then VERSION=${file}; fi
+    fi
+done
+rm versions -f; rm files -f
+rm index -f
+
+### KERNEL VERSION ###
+[ ! -f _kernels ] && wget -q -O _kernels http://www.kernel.org/finger_banner
+KERNEL=$(cat _kernels | grep "stable version" | awk -F: '{print $2}'); KERNEL=$(echo $KERNEL)
+PREFIX=$(echo $KERNEL | awk -F. '{print $1}')
+
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                kernel*)  KERNEL=${i#*=} ;;
+                version*) VERSION=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                quiet)     vQUIET=1 ;;
+            esac ;;
+    esac
+done
+
+echo "${MAGENTA}ZFS VER${NORMAL}:  ${GREEN}v$VERSION${NORMAL}"
+echo "${MAGENTA}KERNEL${NORMAL} :  ${GREEN}v$KERNEL ${CYAN}${CPU}${NORMAL}"
+echo
+
+#########################
+#########################
+#### SOURCE : KERNEL ####
+#########################
+#######################################################################
+#### If we don't already have a kernel package ready for $KERNEL,  ####
+#### Let's COPY ../linux into ../linux-${KERNEL} and launch it     ####
+#### remotely.  This will build the entire kernel and modules, but ####
+#### saves us from having to do so separately!                     ####
+#######################################################################
+if [ ! -d ../linux-${KERNEL} ]; then
+    if [ ! -d $CUR/../linux ]; then
+        echo "${RED}ERROR! ${YELLOW}Linux Kernel Builder Missing!${NORMAL}"
+        exit 1
+    fi
+    echo
+    echo "${YELLOW}Preparing a fresh kernel build${NORMAL}"
+    cp $CUR/../linux $CUR/../linux-${KERNEL} -fR
+    echo "${YELLOW}Transferring to kernel build${NORMAL}"
+    cd $CUR/../linux-${KERNEL}
+    ./build remote version=${KERNEL}
+    echo
+    echo "${YELLOW}Continuing ZFS build${NORMAL}"
+fi
+
+######################
+######################
+#### SOURCE : ZFS ####
+######################
+######################
+CUR=$OLD; cd $CUR
+echo -n "${CYAN}Loading support extensions:"
+ExtLoad compiletc perl5 ncursesw-dev bc bash mpc-dev udev-lib-dev texinfo coreutils glibc_apps gettext python3.6 elfutils-dev zsync wget automake autoconf libtirpc-dev libtool-dev pkg-config openssl-dev squashfs-tools
+
+echo ""
+echo "${YELLOW}Gathering ZFS Source Code${NORMAL}"
+FILE="zfs-${VERSION}.tar.gz"
+URL=${MAIN//\[VER\]/$VERSION}
+[ ! -f $FILE ] && wget -q --no-check-certificate $URL
+[ ! -f $FILE ] && echo "${MAGENTA}Cannot find ${YELLOW}${FILE} ${MAGENTA}at ${YELLOW}${URL}${NORMAL}" && exit 1
+URL=${DOWN//\[VER\]/$VERSION}
+[ ! -f $FILE ] && wget -q --no-check-certificate $URL
+[ ! -f $FILE ] && echo "${MAGENTA}Cannot find ${YELLOW}${FILE} ${MAGENTA}at ${YELLOW}${URL}${NORMAL}" && exit 1
+PTH=${FILE/.tar.gz/}
+[ ! -d ${PTH} ] && echo "${YELLOW}Extracting ZFS Source Code${NORMAL}" && tar -zxf ${FILE}
+
+
+### ZFS
+echo "${YELLOW}Configuring ZFS${NORMAL}"
+cd $CUR/zfs-$VERSION || exit 1
+if [ ! -f ./configure ]; then
+    sh autogen.sh > $CUR/_zfs_autogen.log 2>&1 || exit 1
+fi
+time ./configure --with-linux=$CUR/../linux-${KERNEL}/src/linux-${KERNEL} --prefix=/usr/local > $CUR/_zfs_configure.log 2>&1 || exit 1
+
+echo "${YELLOW}Compiling ZFS${NORMAL}"
+mkdir -p /tmp/zfs_v${VERSION}_k${KERNEL}
+time make -s -j$(nproc) > $CUR/_zfs_compile.log 2>&1 || exit 1
+time make DESTDIR=/tmp/v${VERSION}_k${KERNEL} install > $CUR/_zfs_install.log 2>&1
+mv /tmp/v${VERSION}_k${KERNEL} $CUR/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+exit
+
+
+
+
+
+
+echo
+echo -n "${WHITE}Support Extensions: ${NORMAL}"
+
+EXTS="compiletc squashfs-tools"                                       ##### TCL
+for EXT in $EXTS
+do
+    echo -n "${EXT} "
+    su -c "tce-load -w $EXT >/dev/null" tc
+    su -c "tce-load -i $EXT >/dev/null" tc
+done
+echo
+
+
+### SOURCE CODE ###
+if [ ! -f $CUR/src/${EXT_NAME}-${EXT_VERS}.zip ]; then
+    echo "${MAGENTA}Downloading source code${NORMAL}"
+    mkdir -p $CUR/src; cd $CUR/src
+    wget -q https://github.com/OpenAoE/${EXT_NAME}/archive/refs/tags/${EXT_NAME}-${EXT_VERS}.zip
+    if [ ! -f $CUR/src/${EXT_NAME}-${EXT_VERS}.zip ]; then
+        echo "${RED}ERROR! ${YELLOW}Download Failed!${NORMAL}"; echo
+        wget https://github.com/OpenAoE/${EXT_NAME}/archive/refs/tags/${EXT_NAME}-${EXT_VERS}.zip
+        exit 1
+    fi
+fi
+
+### SOURCE DIRECTORY ###
+if [ ! -d $CUR/src/${EXT_NAME}_${EXT_VERS} ]; then
+    echo "${MAGENTA}Extracting source code${NORMAL}"
+    cd $CUR/src
+    unzip ${EXT_NAME}-${EXT_VERS}.zip >/dev/null 2>&1
+    mv ${EXT_NAME}-${EXT_NAME}-${EXT_VERS} ${EXT_NAME}_${EXT_VERS}
+
+    if [ ! -f $CUR/${EXT_NAME}_${EXT_VERS}.nix.src ]; then
+        echo "${MAGENTA}Creating Source Package${NORMAL}"
+        mkdir -p $CUR/src/pkg/usr/local/src/${EXT_NAME}
+        cp $CUR/src/${EXT_NAME}_${EXT_VERS}/* $CUR/src/pkg/usr/local/src/${EXT_NAME}/ -R
+        cd $CUR/src; mksquashfs pkg $CUR/${EXT_NAME}_${EXT_VERS}.nix.src > $CUR/src_squash.log 2>&1
+#        cd $CUR; rm $CUR/src/pkg -fR
+    fi
+fi
+
+cd $CUR/src/${EXT_NAME}_${EXT_VERS}
+time make -j$(nproc) > $CUR/app_compile.log 2>&1 || exit 1
+strip --strip-all $CUR/src/${EXT_NAME}_${EXT_VERS}/${EXT_NAME}
+
+mkdir -p /tmp/build/${EXT_NAME}/usr/local/bin
+mkdir -p /tmp/build/${EXT_NAME}/usr/local/sbin
+
+cp $CUR/src/${EXT_NAME}_${EXT_VERS}/vblade /tmp/build/${EXT_NAME}/usr/local/sbin/
+cp $CUR/src/${EXT_NAME}_${EXT_VERS}/vbladed /tmp/build/${EXT_NAME}/usr/local/sbin/
+cp $CUR/src/${EXT_NAME}_${EXT_VERS}/sparsefile /tmp/build/${EXT_NAME}/usr/local/bin/
+
+cd /tmp/build
+mksquashfs ${EXT_NAME} $CUR/${EXT_NAME}_${EXT_VERS}_${SXX}.nix > $CUR/app_squash.log 2>&1
+cd $CUR
+md5sum ${EXT_NAME}_${EXT_VERS}_${SXX}.nix > $CUR/${EXT_NAME}_${EXT_VERS}_${SXX}.md5
+SIZE=$(ls -la $CUR/${EXT_NAME}_${EXT_VERS}_${SXX}.nix | awk '{print $5}')
+[ $SIZE -gt 1024 ] && SZX="KB" && SIZE=$(expr $SIZE / 1024)
+[ $SIZE -gt 1024 ] && SZX="MB" && SIZE=$(expr $SIZE / 1024)
+[ $SIZE -gt 1024 ] && SZX="GB" && SIZE=$(expr $SIZE / 1024)
+
+FN=$CUR/${EXT_NAME}_${EXT_VERS}_${SXX}.nfo
+echo "Title:          ${EXT_NAME}_${EXT_VERS}_${SXX}.nix" > $FN
+echo "Description:    $EXT_NAME ATA Over Ethernet Daemon" >> $FN
+echo "Version:        $EXT_VERS" >> $FN
+echo "Author:         Ed Cashin, Anderw Basterfield" >> $FN
+echo "Original-site:  http://github.com/OpenAoE" >> $FN
+echo "Copying-policy: Copyright (C) 2005 to Current" >> $FN
+echo "Size:           $SIZE $SZX" >> $FN
+echo "Extension_by:   CentralWare Development Centers" >> $FN
+echo "Tags:           ATA Over Ethernet AoE" >> $FN
+echo "Comments:       Compiled With SimpleNix $(version) kernel $(uname -r | awk -F- '{print $1}') ${SXX}" >> $FN
+echo "Current:        $(date '+%F%n') by CentralWare" >> $FN
+echo "Change-log:     ----" >> $FN
+echo "Depends:        " >> $FN
+
+cd /tmp/build/${EXT_NAME}
+find . -type f > $CUR/${EXT_NAME}_${EXT_VERS}_${SXX}.lst
+sed -i 's/.\/usr/\/usr/g' $CUR/${EXT_NAME}_${EXT_VERS}_${SXX}.lst
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
