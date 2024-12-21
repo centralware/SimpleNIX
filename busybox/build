@@ -1,8 +1,8 @@
 #!/bin/sh
-. /etc/system/functions; doroot
+clear; CUR=$(pwd)
+[ -f ../functions ] && . ../functions
+doroot
 GetProcessorType
-CUR=$(pwd)
-clear
 
 VERSION=1.30.0
 
