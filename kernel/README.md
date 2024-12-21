@@ -1,6 +1,6 @@
-# Linux Kernel
+# The Kernel
 
-[Simple Linux](https://users.simplenix.com/forum) :: LINUX KERNEL
+[Simple Linux](https://users.simplenix.com/forum) :: KERNEL
 
 * Defaults to v6.6.66 (v6.12 CURRENT), add _ver=x.x.x_ to command line
 * Contains the building module and strcuture for OpenZ/FS, add _zfs=x.x.x_ to command line
