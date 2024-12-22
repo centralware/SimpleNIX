@@ -32,7 +32,8 @@ TITLE="
 #------------------------------------------------------------------------------#
 clear; echo "${TITLE}"; echo; CUR=$(pwd)
 . /etc/init.d/tc-functions; . ../functions                             ##### TCL
-SFX=$(GetProcessorType); SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+GetProcessorType
+SFX=$CPU; SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
 SXX=$SFX
 
 
