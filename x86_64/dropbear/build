@@ -1,0 +1,188 @@
+#!/bin/sh
+CUR=$(pwd); clear
+. ../functions
+
+pkgname="dropbear"
+pkgver="2020.80"
+pkgurl="https://matt.ucc.asn.au/dropbear/dropbear.html"
+pkgall="https://matt.ucc.asn.au/dropbear/releases/"
+pkgsrc="https://matt.ucc.asn.au/dropbear/releases/${pkgname}-${pkgver}.tar.bz2"
+
+mkdir -p $CUR/dl; cd $CUR/dl
+
+### SUPPORT EXTENSIONS ###
+EXTS="wget bash python3.6 compiletc squashfs-tools"
+ExtLoad $EXTS
+
+### CURRENT VERSION ###
+echo "Checking Versions"
+[ ! -f version.html ] && wget -q $pkgurl -O version.html
+[ ! -f versions.html ] && wget -q $pkgall -O - | grep bz2 | grep -v asc > versions.html
+V=$(cat version.html | grep "Latest is" | awk -F "<" '{print $1}')
+V=$(echo $V | awk '{print $3}')
+[ ! -f $CUR/_current ] && echo $V > $CUR/_current
+
+### SOURCE PACKAGE ###
+echo "Gathering Sources"
+[ ! -f ${pkgname}-${pkgver}.tar.bz2 ] && wget -q --no-check-certificate $pkgsrc -O ${pkgname}-${pkgver}.tar.bz2
+[ ! -d $CUR/src ] && mkdir $CUR/src && cd $CUR/src && tar -jxf $CUR/dl/${pkgname}-${pkgver}.tar.bz2
+if [ ! -f $CUR/${pkgname}__${pkgver}.src ]; then
+    mkdir -p $CUR/tmp && rm $CUR/tmp -fR && mkdir $CUR/tmp && cd $CUR/tmp
+    tar -jxf $CUR/dl/${pkgname}-${pkgver}.tar.bz2
+    mksquashfs ${pkgname}-${pkgver} $CUR/${pkgname}__${pkgver}.srcs >$CUR/_sources.log 2>&1 || exit 1
+    cd $CUR; rm $CUR/tmp -fR
+    md5sum ${pkgname}__${pkgver}.srcs > ${pkgname}__${pkgver}.src5
+fi
+
+cd $CUR
+GetProcessorType
+
+[ ! -d $CUR/src/${pkgname}-${pkgver} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+cd $CUR/src/${pkgname}-${pkgver}
+if [ ! -f ./.configured ]; then
+    echo "${CYAN}Configuring...${NORMAL}"
+    ./configure \
+        --prefix=/usr/local \
+        --mandir=/usr/local/share/man \
+        --infodir=/usr/local/share/info > \
+        $CUR/_configure.log 2>&1 || exit 1
+    touch ./.configured
+fi
+echo "${CYAN}Compiling...${NORMAL}"
+make -j$(nproc) -O > $CUR/_compile.log 2>&1 || exit 1
+
+echo "${CYAN}Testing...${NORMAL}"
+make -j$(nproc) check > $CUR/_testing.log 2>&1
+
+echo "${CYAN}Preparing...${NORMAL}"
+make DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+
+cd $CUR
+mksquashfs ext ${pkgname}__${pkgver}__${CPU}.spkg >$CUR/_binpack.log 2>&1 || exit 1
+md5sum ${pkgname}__${pkgver}__${CPU}.spkg > ${pkgname}__${pkgver}__${CPU}.spk5
+
+
+
+
+
+
+
+
+
+##########################
+### CREATE INIT.D FILE ###
+##########################
+mkdir -p $CUR/ext/usr/local/etc/init.d $CUR/ext/usr/local/etc/dropbear
+cat > $CUR/ext/usr/local/etc/init.d/dropbear << "EOF"
+#!/bin/sh
+NAME=Dropbear
+DESC="SSH server"
+DAEMON=/usr/local/sbin/dropbear
+OPTIONS="-g -b /usr/local/etc/dropbear/banner -R"
+OPTIONS="-R -b /usr/local/etc/dropbear/banner"
+PIDFILE=/var/run/dropbear.pid
+
+case "$1" in
+  start)
+    for i in rsa dss ecdsa ed25519
+      do
+        key=usr/local/etc/dropbear/dropbear_${i}_host_key
+        if [ ! -f /$key ] ; then
+          echo "Generating $NAME $i key... "
+          dropbearkey -t $i -f /$key
+        fi
+      done
+    if [ -f $PIDFILE ] ; then
+      echo "$NAME already running."
+      exit 1
+    fi
+    echo "Starting $DESC: $NAME... "
+    $DAEMON $OPTIONS
+    ;;
+  stop)
+    if [ ! -f $PIDFILE ] ; then
+      echo "$NAME is not running."
+      exit 1
+    fi
+    echo "Stopping $DESC: $NAME... "
+    kill `cat $PIDFILE`
+    ;;
+  restart)
+    if [ ! -f $PIDFILE ] ; then
+      echo "$NAME is not running."
+      exit 1
+    fi
+    echo "Restarting $DESC: $NAME... "
+    kill `cat $PIDFILE`
+    sleep 2
+    $DAEMON $OPTIONS
+    ;;
+  status)
+    if [ -f $PIDFILE ]; then
+        echo "$NAME is running."
+        exit 0
+    else
+        echo "$NAME not running."
+        exit 1
+    fi
+  ;;
+  *)
+    echo ""
+    echo -e "\033[1mUsage:\033[0m /usr/local/etc/init.d/`basename $0` [start|stop|restart|status]"
+    echo ""
+    exit 1
+    ;;
+esac
+exit 0
+EOF
+chmod +x $CUR/ext/usr/local/etc/init.d/dropbear
+
+  #####################
+ ### CREATE PACKAGES ###
+  #####################
+mkdir -p $CUR/pkg/doc/usr/local $CUR/pkg/bin/usr/local
+cd $CUR/pkg/doc/usr/local
+cp $CUR/ext/usr/local/share ./ -fR
+cd $CUR/pkg/bin/usr/
+cp $CUR/ext/usr/local ./ -fR
+rm $CUR/pkg/bin/usr/local/share -fR
+
+cd $CUR/pkg
+mksquashfs bin $CUR/${pkgname}__${pkgver}__${CPU}.snix >$CUR/_extbin.log 2>&1 || exit 1
+mksquashfs doc $CUR/${pkgname}__${pkgver}__${CPU}.docs >$CUR/_extdoc.log 2>&1 || exit 1
+
+cd $CUR
+md5sum ${pkgname}__${pkgver}__${CPU}.snix > ${pkgname}__${pkgver}__${CPU}.snx5
+md5sum ${pkgname}__${pkgver}__${CPU}.docs > ${pkgname}__${pkgver}__${CPU}.doc5
+
+
+###########################
+### CREATE DEPS PACKAGE ###
+###########################
+touch ${pkgname}__${pkgver}__${CPU}.deps
+
+############################
+### CREATE INFO PACKAGES ###
+############################
+echo "title:           ${pkgname}" > $CUR/${pkgname}__${pkgver}.info
+cat >> $CUR/${pkgname}__${pkgver}.info << "EOF"
+description:     Dropbear is a relatively small SSH server and client. It runs on a variety of unix platforms.
+author:          Matt Johnson
+website:         https://matt.ucc.asn.au/dropbear
+copyright:       MIT
+platforms:       all
+EOF
+
+echo "title:           $pkgname" > $CUR/${pkgname}__${pkgver}__${CPU}.info
+echo "version:         $pkgver" >> $CUR/${pkgname}__${pkgver}__${CPU}.info
+cat >> $CUR/${pkgname}__${pkgver}__${CPU}.info << "EOF"
+description:     Dropbear is a relatively small SSH server and client. It runs on a variety of unix platforms.
+author:          Matt Johnson
+website:         https://matt.ucc.asn.au/dropbear
+copyright:       MIT
+platforms:       all
+EOF
+echo "notes:           Compiled for the $CPU platform" >> $CUR/${pkgname}__${pkgver}__${CPU}.info
+
+cd $CUR; cp build ${pkgname}__${pkgver}__${CPU}.bldr

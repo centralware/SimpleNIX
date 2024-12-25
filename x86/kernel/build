@@ -1,0 +1,377 @@
+#!/bin/sh
+clear; CUR=$(pwd)
+[ -f ../functions ] && . ../functions
+doroot
+
+#############################
+### LINUX KERNEL DEFAULTS ###
+#############################
+kernel_name="linux"                     # Default Kernel Name
+kernel_suffix="simple64"                # Default Kernel Suffix
+kernel_hostname="simpleNIX"             # Default Kernel Hostname
+kernel_version=6.6.66
+
+##################################
+### LINUX KERNEL BUILT-IN: ZFS ###
+##################################
+zfs_name="zfs"
+zfs_version="2.1.16"
+zfs_mod=""
+
+### Create our starting time-stamp ###
+date +%s > /tmp/timestamp
+
+  #############################
+ ##### EXTENSION LISTING #####
+################################################################################
+ExtList="wget compiletc bc perl5 ncursesw-dev bash mpc-dev udev-lib-dev texinfo \
+    coreutils glibc_apps gettext python3.6 elfutils-dev zsync squashfs-tools git \
+    automake autoconf libtirpc-dev libtool-dev pkg-config openssl-dev openssl git"
+echo
+echo -n "Loading Support Extensions "
+CNT=0
+for EXT in $ExtList
+do
+    EXT=${EXT/.tcz/}
+    echo -n "${YELLOW}${EXT}${NORMAL} "
+    if [ ! -d /tmp/tcloop/${EXT} ]; then
+        if [ ! -f /etc/sysconfig/tcedir/optional/${EXT}.tcz ]; then
+            su -c "tce-load -w $EXT" tc >>$CUR/extensions.log 2>&1 || exit 1
+        fi
+        su -c "tce-load -i $EXT" tc >>$CUR/extensions.log 2>&1 || exit 1
+    fi
+    CNT=$(expr $CNT + 1)
+    if [ $CNT -gt 6 ]; then
+        echo
+        echo -n "                           "
+        CNT=0
+    fi
+done
+echo "Done."
+################################################################################
+
+GetProcessorType
+KERNEL=$(uname -r | awk -F- '{print $1}')
+
+RAM=$(free | head -n 2 | tail -n 1 | awk '{print $4}'); SFX="B"
+[ $RAM -gt 1023 ] && RAM=$(expr $RAM \/ 1024) && SFX="MB"
+[ $RAM -gt 1023 ] && RAM=$(expr $RAM \/ 1024) && SFX="GB"
+[ $RAM -gt 1023 ] && RAM=$(expr $RAM \/ 1024) && SFX="TB"
+
+#####################################
+##### KERNEL WEBSITE VERSION(S) #####
+#####################################
+if [ ! -f ver_kernel ]; then
+    echo -n "Getting Linux Versions "
+    wget -q http://www.kernel.org/finger_banner -O - | awk -F: '{print $2}' > kernel.html
+    while read -r line
+    do
+        line=${line//  / } && line=${line//  / }
+        test=$(echo ${line} | grep "rc")
+        [ "${test}" == "" ] && echo $line >> ver_kernel
+    done < kernel.html
+    rm kernel.html -f
+    echo " Done."
+fi
+current_version=$(head -n 1 ver_kernel)
+
+########################
+##### COMMAND LINE #####
+########################
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)      kernel_version=${i#*=} ;;
+                suffix*)   kernel_suffix=${i#*=} ;;
+                hostname*) kernel_hostname=${i#*=} ;;
+                config*)   kernel_config=${i#*=} ;;
+                compile*)  kernel_compile=${i#*=} ;;
+
+                zfs*)      zfs_version=${i#*=} ;;
+            esac
+            ;;
+        *)
+            case $i in
+                clean)     run_clean=1 ;;
+            esac
+            ;;
+    esac
+done
+
+[ ! -f $CUR/_config_${kernel_version} ] && cp $CUR/_config $CUR/_config_${kernel_version}
+
+ ####################
+### SYSTEM CLEANER ###
+ ####################
+if [ $run_clean ]; then
+    echo
+    echo "${YELLOW}CLEANER: ${RED}DELETING ALL SOURCE RELATED FILES${NORMAL} "
+    sleep 2
+    for file in *
+    do
+        if [ ! "${file}" == "builder" ]; then
+            echo "Deleting ${file}"
+            if [ -d ${file} ]; then
+                sudo rm ${file} -fR
+            else
+                sudo rm ${file} -f
+            fi
+        fi
+    done
+    echo " Done."
+    exit 0
+fi
+
+
+
+
+
+
+
+
+
+clear
+echo "${CYAN}######################"
+echo "##   ${YELLOW}LINUX KERNEL ${CYAN}  ##"
+echo "######################"
+echo " ## ${WHITE}Version:  ${GREEN}${kernel_version}${CYAN}"
+echo "  ## ${WHITE}Current:  ${GREEN}${current_version}${CYAN}"
+echo "   ######################${NORMAL}"
+echo
+
+
+mkdir -p $CUR/dl $CUR/src $CUR/out
+
+#[ ! -f $CUR/dl/modsort.sh ] && wget -q -O $CUR/dl/modsort.sh "http://users.simplenix.com/wiki/doku.php?do=export_code&id=extensions:x86_64:kernel_modsort&codeblock=0"
+#[ ! -f $CUR/dl/modsort.sh ] && cp $CUR/modsort $CUR/dl/modsort.sh && chmod +x $CUR/dl/modsort.sh
+
+
+
+if [ ! -f $CUR/dl/${kernel_name}-${kernel_version}.tar.xz ]; then
+    echo -n "${CYAN}Downloading Kernel Source ${GREEN}${kernel_version}${NORMAL}  "
+    PRE=$(echo $kernel_version | awk -F. '{print $1}')
+    cd $CUR/dl
+    time wget --no-check-certificate "https://cdn.kernel.org/pub/linux/kernel/v${PRE}.x/linux-${kernel_version}.tar.xz" > $CUR/out/_krn_download.log 2>&1 || exit 1 &
+    rotdash $!
+    cd $CUR
+    echo "Done. $(tail -n 3 $CUR/out/_krn_download.log | head -n 1 | awk '{print $2 " " $3}')"
+fi
+
+KRN=$CUR/src/${kernel_name}-${kernel_version}
+if [ ! -d $KRN ]; then
+    echo -n "${CYAN}Extracting Kernel Source ${GREEN}${kernel_version}${NORMAL}  "
+    cd $CUR/src
+    time tar -xf $CUR/dl/${kernel_name}-${kernel_version}.tar.xz > $CUR/out/_krn_extract.log 2>&1 || exit 1 &
+    rotdash $!
+    cd $CUR
+    echo "Done. $(tail -n 3 $CUR/out/_krn_extract.log | head -n 1 | awk '{print $2 " " $3}')"
+fi
+
+
+
+
+### ZFS VERSIONS ###
+if [ ! -f $CUR/ver_zfs ]; then
+    echo -n "${CYAN}Obtaining version information for ${YELLOW}zfs${NORMAL} "
+    [ ! -f /tmp/releases.html ] && wget -q https://github.com/openzfs/zfs/releases -O /tmp/releases.html
+    cat /tmp/releases.html | grep "/openzfs/zfs/releases/tag" > /tmp/tags.html && rm /tmp/releases.html -f
+    cat /tmp/tags.html | awk -F "href=" '{print $2}' | awk '{print $1}' > /tmp/links.html && rm /tmp/tags.html -f
+    sed -i 's/\"//g' /tmp/links.html
+    cat /tmp/links.html | grep -v "\-rc" | sort -r > /tmp/zfslinks.html && rm /tmp/links.html -f
+    links=$(cat /tmp/zfslinks.html) && rm /tmp/zfslinks.html -f
+    touch $CUR/ver_zfs && rm $CUR/ver_zfs -f
+    for LINK in $links
+    do
+        basename $LINK >> $CUR/ver_zfs
+    done
+    echo " Done."
+fi
+
+
+
+
+zfs_version=$(head -n 1 $CUR/ver_zfs)
+ZFS=$CUR/src/${zfs_name}-${zfs_version}
+if [ ! -d $ZFS ]; then
+    cd $CUR/dl
+    echo -n "${CYAN}Obtaining source GIT archive for ${YELLOW}zfs${NORMAL}  "
+    export GIT_SSL_NO_VERIFY=true
+    time git clone https://github.com/zfsonlinux/zfs > $CUR/out/_zfs_git_clone.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_zfs_git_clone.log | head -n 1 | awk '{print $2 " " $3}')"
+
+    mv zfs $ZFS
+    echo -n "${CYAN}Setting GIT checkout to ${GREEN}${zfs_version}${NORMAL}  "
+    cd $ZFS
+    time git checkout tags/${zfs_name}-${zfs_version} > $CUR/out/_zfs_git_checkout.log 2>&1 || exit 1 &
+    rotdash $!
+    cd $CUR
+    echo "Done. $(tail -n 3 $CUR/out/_zfs_git_checkout.log | head -n 1 | awk '{print $2 " " $3}')"
+fi
+
+[ ! -d $ZFS ] && exit 1
+
+
+
+
+##### PATCHES
+mkdir -p $CUR/dl
+cd $CUR/dl
+tar -zxf ../_patches
+
+##### CONFIGS
+#if [ ! -f $KRN/.configured ]; then
+    cd $KRN
+    cp $CUR/_config_${kernel_version} ./.config -f
+
+    echo -n "${CYAN}Preparing Kernel Source ${GREEN}${kernel_version}${NORMAL} "
+    E="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    echo -e "$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E" > ./.blanks
+
+    test=$(cat $CUR/_config_${kernel_version} | grep "${kernel_version}")
+    if [ "${test}" == "" ]; then
+        time make oldconfig < ./.blanks > $CUR/out/_krn_config.log 2>&1 || exit 1 &
+        rotdash $!
+        echo -n ""
+        cp ./.config $CUR/_config_${kernel_version} -f
+    fi
+
+    ### Modify CONFIG with SUFFIX and HOSTNAME ###
+    sed -i "s/~~HOSTNAME~~/${kernel_hostname}/g" ./.config
+    sed -i "s/~~SUFFIX~~/-${kernel_suffix}/g" ./.config
+
+    ### PATCH SOURCES
+    echo -n "${MAGENTA}Patching "
+    touch $CUR/out/_krn_patch.log; rm $CUR/out/_krn_patch.log -f
+    cd $CUR/dl; patches=$(ls -1 *.patch); cd $KRN
+    for PATCH in $patches; do patch -Np1 -i $CUR/_files/$PATCH >> $CUR/out/_krn_patch.log 2>&1; done
+
+    echo -n "${YELLOW}Configuring ${NORMAL}"
+    time make oldconfig < ./.blanks > $CUR/out/_krn_config.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_krn_config.log | head -n 1 | awk '{print $2 " " $3}')"
+
+    echo -n "${CYAN}Preparing Kernel Scripts ${GREEN}${kernel_version}${NORMAL}  "
+    time make prepare scripts > $CUR/out/_krn_prepare.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_krn_config.log | head -n 1 | awk '{print $2 " " $3}')"
+
+
+    ########################################
+    ## STEP 2: Configure ZFS
+    ########################################
+    cd $ZFS
+    echo -n "${CYAN}Creating ZFS Source Configuration${NORMAL}  "
+    sed -i 's/CDD/GP/g' META || exit 1
+    time sh autogen.sh >$CUR/out/_zfs_autogen.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_zfs_autogen.log | head -n 1 | awk '{print $2 " " $3}')"
+
+    echo -n "${CYAN}Configuring ZFS Source Code${NORMAL}  "
+    time ./configure --prefix=/usr --libdir=/lib --includedir=/usr/include \
+        --datarootdir=/usr/local/share --enable-linux-builtin=yes \
+        --with-linux=$KRN --with-linux-obj=$KRN > \
+        $CUR/out/_zfs_configure.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_zfs_configure.log | head -n 1 | awk '{print $2 " " $3}')"
+
+    echo -n "${CYAN}Creating Built-In ZFS Configuration${NORMAL}  "
+    time ./copy-builtin $KRN >$CUR/out/_zfs_builtin.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_zfs_builtin.log | head -n 1 | awk '{print $2 " " $3}')"
+
+    touch ./.configured
+#fi
+
+
+
+
+
+########################################
+## STEP 3:  Compile ZFS
+########################################
+cd $ZFS
+#if [ ! -f ./.compiled ]; then
+    echo -n "${CYAN}Compiling ZFS Source Code${NORMAL}  "
+    time make -j$(nproc) >$CUR/out/_zfs_compile.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_zfs_compile.log | head -n 1 | awk '{print $2 " " $3}')"
+    touch ./.compiled
+#fi
+
+echo -n "${CYAN}Installing ZFS Application${NORMAL}  "
+time sudo make DESTDIR=$CUR/out/zfs_${zfs_version}_${kernel_version} install >$CUR/out/_zfs_install.log 2>&1 || exit 1 &
+rotdash $!
+### TODO: ZFS STRIP
+echo "Done. $(tail -n 3 $CUR/out/_zfs_install.log | head -n 1 | awk '{print $2 " " $3}')"
+
+
+
+
+
+########################################
+## STEP 4:  Linux REconfig < Answer for changes
+########################################
+cd $KRN
+echo -n "${CYAN}RE-Configuring Kernel Source ${GREEN}${kernel_version}${NORMAL}  "
+E="\n"
+#if [ "${zfs_asmod}" == "yes" ]; then
+    echo -e "m$E" > ./.blanks
+#else
+#    echo -e "y$E" > ./.blanks
+#fi
+time make oldconfig < ./.blanks > $CUR/out/_krn_reconfig.log 2>&1 || exit 1 &
+rotdash $!
+echo "Done. $(tail -n 3 $CUR/out/_krn_reconfig.log | head -n 1 | awk '{print $2 " " $3}')"
+
+
+
+
+
+cd $KRN
+#if [ ! -f $CUR/out/vmlinuz_${kernel_version} ]; then
+    echo -n "${CYAN}Compiling Kernel Image ${GREEN}${kernel_version}${NORMAL}  "
+    time make -j$(nproc) bzImage > $CUR/out/_krn_bzimage.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_krn_bzimage.log | head -n 1 | awk '{print $2 " " $3}')"
+    cp $KRN/arch/x86/boot/bzImage $CUR/out/vmlinuz_${kernel_version} -f
+sync; sync
+    ### TODO: STRIP KERNEL ###
+#fi
+
+cd $KRN
+#if [ ! -f ./.modules ]; then
+    echo -n "${CYAN}Compiling Kernel Modules ${GREEN}${kernel_version}${NORMAL}  "
+    time make -j$(nproc) modules > $CUR/out/_krn_modules.log 2>&1 || exit 1 &
+    rotdash $!
+    touch ./.modules
+    echo "Done. $(tail -n 3 $CUR/out/_krn_modules.log | head -n 1 | awk '{print $2 " " $3}')"
+sync; sync
+#fi
+
+cd $KRN
+#if [ ! -d $CUR/out/modules_${kernel_version} ]; then
+    echo -n "${CYAN}Installing Kernel Modules ${GREEN}${kernel_version}${NORMAL}  "
+    time make -j$(nproc) INSTALL_MOD_PATH="$CUR/out/modules_${kernel_version}/usr/local" modules_install > $CUR/out/_krn_modinst.log 2>&1 || exit 1 &
+    rotdash $!
+    ### TODO: STRIP MODULES ###
+    echo "Done. $(tail -n 3 $CUR/out/_krn_modinst.log | head -n 1 | awk '{print $2 " " $3}')"
+sync; sync
+#fi
+
+cd $ZFS
+sed -i 's/GP/CDD/g' META || exit 1
+
+## PACKAGE ##
+sync; sync
+[ ! -f $CUR/dl/modsort.sh ] && cp $CUR/_modsort $CUR/dl/modsort.sh && chmod +x $CUR/dl/modsort.sh
+mkdir -p $CUR/out/packages; cd $CUR/out/packages
+$CUR/dl/modsort.sh "${kernel_version}-${kernel_suffix}" "${CUR}/out/modules_${kernel_version}"
+
+
+
+NOW=$(date +%s); OLD=$(cat /tmp/timestamp); EXP=$(expr $NOW - $OLD)
+MIN=$(expr $EXP \/ 60); REM=$(expr $MIN \* 60); REM=$(expr $EXP - $REM)
+echo "${YELLOW}Completion: ${MIN}m ${REM}s${NORMAL}"
