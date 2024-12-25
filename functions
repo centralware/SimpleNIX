@@ -1,5 +1,7 @@
 #!/bin/sh
 
+PROJECT=/array1/PROJECTS/simpleNIX
+
 # Common ANSI Colors
 RED="$(echo -e '\033[1;31m')";       GREEN="$(echo -e '\033[1;32m')"
 YELLOW="$(echo -e '\033[1;33m')";    BLUE="$(echo -e '\033[1;34m')"

@@ -1,5 +1,0 @@
-busybox_depmod.patch
-busybox_modprobe.patch
-busybox_root_path.patch
-busybox_wget-default-timeout.patch
-
