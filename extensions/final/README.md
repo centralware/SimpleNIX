@@ -24,8 +24,8 @@ special server calls both of the above functions. If a version number is provide
 most recent version available. Once the source package is downloaded and repackaged, the extension's name is added to the build queue where the server farm will then 
 take the downloaded/repackaged source package and compile it as needed.
 
-Once compiling/packaging is complete, it is saved as ${EXT_NAME}__${VERSION}__${PLATFORM}.bin.tgz and contains the entire compiled package including documentation, 
-locale data, headers, etc. A SquashFS version is also created as ${EXT_NAME}__${VERSION}__${PLATFORM}.pkg with separated ${EXT_NAME}-doc, ${EXT_NAME}-dev and ${EXT_NAME}-loc 
+Once compiling/packaging is complete, it is saved as ```${EXT_NAME}__${VERSION}__${PLATFORM}.bin.tgz``` and contains the entire compiled package including documentation, 
+locale data, headers, etc. A SquashFS version is also created as ```${EXT_NAME}__${VERSION}__${PLATFORM}.pkg``` with separated ${EXT_NAME}-doc, ${EXT_NAME}-dev and ${EXT_NAME}-loc 
 where applicable.  Each package has its own INFO file, signature files, file tree/listings and dependency listings as applicable. The INFO file also contains a list of 
 run-time dependencies, kernel requirements, etc. which can be used for installation logic.
 
@@ -35,9 +35,9 @@ where necessary.  This concept should end up creating the world's largest one-st
 eventually be tuned to handle cross-compilation where necessary.
 
 ```diff
-- For sake of speed and efficiency, we are going to start this project using as many public repositories available, such as those found in Arch 
-- or Alpine Linux distributions which may already be partially functional for our needs.  (Fully functional build scripts would be a dream come 
-- true!) For these instances, we have a CONVERT directory which contains the seeds from different distributions to be used as a guide to create 
-- functioning Simple Linux Builders.
++ For sake of speed and efficiency, we are going to start this project using as many public repositories available, such as
++ those found in Arch or Alpine Linux distributions which may already be partially functional for our needs.  (Fully
++ functional build scripts would be a dream come true!) For these instances, we have a CONVERT directory which contains
++ the seeds from different distributions to be used as a guide to create functioning Simple Linux Builders.
 ```
 
