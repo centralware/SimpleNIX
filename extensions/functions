@@ -609,14 +609,6 @@ nodot()
     rm newinfo -f
 }
 
-
-
-
-token()
-{
-    echo "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"
-}
-
 escaped()
 {
     echo $1 | sed -r 's/([\$\.\*\/\[\\^])/\\\1/g' | sed 's/[]]/\[]]/g'
