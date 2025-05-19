@@ -1,0 +1,51 @@
+# Maintainer: ovf <ovf@mm.st>
+pkgname=vcmi
+pkgver=1.5.5
+pkgrel=0
+pkgdesc="Open-source engine for Heroes of Might and Magic III"
+url="https://vcmi.eu"
+# ppc64le, riscv64, loongarch64: no luajit
+# game engine
+arch="aarch64 x86_64"
+license="GPL-2.0-or-later"
+makedepends="
+	boost-dev
+	cmake
+	ffmpeg-dev
+	fuzzylite-dev
+	luajit-dev
+	minizip-dev
+	onetbb-dev
+	qt6-qtbase-dev
+	qt6-qttools-dev
+	samurai
+	sdl2-dev
+	sdl2_image-dev
+	sdl2_mixer-dev
+	sdl2_ttf-dev
+	zlib-dev
+	"
+source="https://github.com/vcmi/vcmi/archive/refs/tags/$pkgver/vcmi-$pkgver.tar.gz"
+
+build() {
+	cmake -B build -G Ninja -Wno-dev \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+		-DCMAKE_BUILD_TYPE=None \
+		-DFORCE_BUNDLED_FL=OFF \
+		-DFORCE_BUNDLED_MINIZIP=OFF \
+		-DENABLE_INNOEXTRACT=OFF
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+55af9c0b02f7dea3fd5bedeeabe0ae954284df5df2f11cd4a648bb37a89ef32dac1275228a67e85af29a03c3a9faea2ab0ada1de6d83c9e87bb75782673ee832  vcmi-1.5.5.tar.gz
+"

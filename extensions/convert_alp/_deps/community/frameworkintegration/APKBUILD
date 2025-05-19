@@ -1,0 +1,53 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-frameworks
+pkgname=frameworkintegration
+pkgver=6.5.0
+pkgrel=0
+pkgdesc="Framework providing components to allow applications to integrate with a KDE Workspace"
+# armhf blocked by extra-cmake-modules
+arch="all !armhf"
+url="https://www.kde.org"
+license="LGPL-2.1-or-later"
+depends_dev="
+	appstream-dev
+	kconfig-dev
+	kconfigwidgets-dev
+	ki18n-dev
+	kiconthemes-dev
+	knewstuff-dev
+	knotifications-dev
+	kpackage-dev
+	kwidgetsaddons-dev
+	qt6-qtbase-dev
+	"
+makedepends="$depends_dev
+	extra-cmake-modules
+	samurai
+	"
+checkdepends="xvfb-run"
+subpackages="$pkgname-dev"
+_repo_url="https://invent.kde.org/frameworks/frameworkintegration.git"
+source="https://download.kde.org/stable/frameworks/${pkgver%.*}/frameworkintegration-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	xvfb-run ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+aaab79c87748923d2759ea2899a292b7b00e89ae433b0ed926863d2af952bff81a86ac180432e90b93a8fca96089bf23edf249b68e8e6e545b375cdf13158f0d  frameworkintegration-6.5.0.tar.xz
+"

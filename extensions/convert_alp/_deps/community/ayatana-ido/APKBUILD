@@ -1,0 +1,47 @@
+# Contributor: Luca Weiss <luca@lucaweiss.eu>
+# Maintainer: Luca Weiss <luca@lucaweiss.eu>
+pkgname=ayatana-ido
+pkgver=0.10.3
+pkgrel=0
+pkgdesc="Ayatana Indicator Display Objects"
+url="https://github.com/AyatanaIndicators/ayatana-ido"
+arch="all"
+license="LGPL-2.1-only AND LGPL-3.0-only AND GPL-3.0-only"
+makedepends="
+	cmake
+	cmake-extras
+	glib-dev
+	gtest-dev
+	gtk+3.0-dev
+	samurai
+	"
+checkdepends="xvfb-run"
+subpackages="$pkgname-dev"
+source="https://github.com/AyatanaIndicators/ayatana-ido/archive/$pkgver/ayatana-ido-$pkgver.tar.gz"
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=True \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DENABLE_TESTS=ON \
+		$CMAKE_CROSSOPTS .
+	cmake --build build
+}
+
+check() {
+	cd build
+	CTEST_OUTPUT_ON_FAILURE=TRUE xvfb-run -a ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+c46f782e2230bdf3cd4d0a56604afdeecf4a61c8cf027dfdfdb1e17b80fe6bad0149323eec750040479ae9a220b86c80b6fc9ff556d155bcde25ea9494b9d1db  ayatana-ido-0.10.3.tar.gz
+"

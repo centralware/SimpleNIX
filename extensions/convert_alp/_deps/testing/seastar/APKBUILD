@@ -1,0 +1,99 @@
+# Maintainer: Duncan Bellamy <dunk@denkimushi.com>
+pkgname=seastar
+pkgver=22.11.0_git20240711
+pkgrel=0
+_commit="3fdb59979aa919face21390d517846258a83c4aa"
+_ver="${_commit:=$pkgver}"
+pkgdesc="High performance server-side application framework"
+url="https://seastar.io"
+# riscv64, loongarch64: valgrind
+# armhf armv7 x86 32bit not supported
+arch="all !x86 !armhf !armv7 !riscv64 !loongarch64"
+license="Apache-2.0"
+depends_dev="
+	$pkgname=$pkgver-r$pkgrel
+	$pkgname-testing=$pkgver-r$pkgrel
+	"
+makedepends="
+	boost-dev
+	bsd-compat-headers
+	c-ares-dev
+	cmake
+	crypto++-dev
+	fmt-dev
+	gnutls-dev
+	hwloc-dev
+	libpciaccess-dev
+	libucontext-dev
+	libunwind-dev
+	liburing-dev
+	lksctp-tools-dev
+	lz4-dev
+	numactl-dev
+	protobuf-dev
+	ragel
+	samurai
+	util-linux-dev
+	valgrind-dev
+	xfsprogs-dev
+	yaml-cpp-dev
+	"
+case "$CARCH" in
+aarch64|x86_64) makedepends="$makedepends dpdk-dev" ;;
+esac
+checkdepends="py3-yaml"
+subpackages="$pkgname-dev $pkgname-testing"
+source="$pkgname-$_ver.tar.gz::https://github.com/scylladb/seastar/archive/$_ver.tar.gz
+	20-c-ares-ignore.patch"
+builddir="$srcdir/$pkgname-$_ver"
+
+build() {
+	case "$CARCH" in
+		aarch64|x86_64) local _dpdk=ON ;;
+		*) 		local _dpdk=OFF ;;
+	esac
+	if [ "$CBUILD" != "$CHOST" ]; then
+		local crossopts="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	export CXXFLAGS="$CXXFLAGS -DSEASTAR_DEFAULT_ALLOCATOR -Wno-cpp"
+	cmake -B build -G Ninja \
+		-DBUILD_SHARED_LIBS=ON \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DSeastar_APPS=OFF \
+		-DSeastar_DEMOS=OFF \
+		-DSeastar_DOCS=OFF \
+		-DSeastar_DPDK="$_dpdk" \
+		$crossopts
+	cmake --build build
+}
+
+check() {
+	# rest: needs root (doesn't work in container) for hardware access
+	# see also: https://github.com/scylladb/seastar/issues/1826
+	local _tests="chunk_parsers|httpd|request_parser|semaphore|stall_detector|tls|app-template"
+	# -j2: "Could not initialize seastar: std::runtime_error (Could not setup Async I/O:
+	# "Not enough request capacity in /proc/sys/fs/aio-max-nr. Try increasing that number
+	# "or reducing the amount of logical CPUs available for your application)"
+	ctest --test-dir build --output-on-failure \
+		-E "($_tests)" -j2
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+dev() {
+	default_dev
+	amove usr/bin
+}
+
+testing() {
+	amove usr/lib/libseastar_*testing.so
+}
+
+sha512sums="
+e400e5b9f79aae9ba9acc6d5a74bcffc83827b96651d587a5e3515e38dce3f6df8fc5fb8d9f96e7e7e886ab793ed85bc9dac41dd36effdfeaccc013ec1dfb89f  seastar-3fdb59979aa919face21390d517846258a83c4aa.tar.gz
+f40497f08e2f704d5da3fb9d37c8c2aba8a39e047de8664534826287873b1e90ca980b736aa2bf96bfd77bcbcc4ca612353d64c78a7cb566d59ffe55e2365eb0  20-c-ares-ignore.patch
+"

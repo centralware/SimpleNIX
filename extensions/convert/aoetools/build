@@ -1,0 +1,142 @@
+#!/bin/sh
+
+    EXT_NAME="AoE Tools"
+    EXT_FUNC="aoetools"
+    EXT_FILE=""
+    EXT_VERS=""
+    EXT_PLAT=""
+    EXT_KERN=""
+    EXT_AUTH="Brantley Coile Co."
+    EXT_SITE="https://github.com/OpenAoE/aoetools"
+    EXT_STAT="ACTIVE"
+    EXT_DEPS=""
+
+    BLD_DEPS="compiletc squashfs-tools"
+
+    CUR=$(pwd); FUNCTIONS=""
+    [ -f ./functions ]           && [ "${FUNCTIONS}" == "" ] && FUNCTIONS=$CUR
+    [ -f ../functions ]          && [ "${FUNCTIONS}" == "" ] && FUNCTIONS=$(dirname $CUR)
+    [ -f /etc/init.d/functions ] && [ "${FUNCTIONS}" == "" ] && FUNCTIONS="/etc/init.d"
+    . $FUNCTIONS/functions
+    getCPU; SFX=$CPU; SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+    SXX=$SFX
+
+    # Command Line #
+    for i in $@
+    do
+        case $i in
+            *=*)
+                case $i in
+                    version*) echo "${i#*=}" > version ;;
+                esac
+                ;;
+            *)
+                case $i in
+                    nozswap) NOZSWAP=1 ;;
+                esac
+                ;;
+        esac
+    done
+
+    clear; title
+    screenPOS 21 1; echo "${WHITE}Project      : ${ORANGE}${EXT_NAME}"
+    screenPOS 21 40; echo "${WHITE}Platform     : ${ORANGE}${CPU}${NORMAL}${CURSOROFF}"
+
+    screenPOS 23 1 && screenWIPE
+    screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Loading Support Extensions${NORMAL}"
+    extload quiet $BLD_DEPS
+
+    ###############
+    ### VERSION ###
+    ###############
+    screenPOS 23 1 && screenWIPE
+    screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Gathering version information${NORMAL}"
+    if [ ! -f version ]; then
+        [ ! -f version.dat ] && wget -q https://github.com/OpenAoE/${EXT_FUNC}/tags -O - > version.dat
+        cat version.dat | grep "${EXT_FUNC}-" | grep "a href" | awk -F "a href=" '{print $2}' | awk -F "\"" '{print $2}' | awk -F "-" '{print $2}' > version.nfo
+        head -n 1 version.nfo > version
+        rm version.dat -f; rm version.nfo -f
+    fi
+    [ "${EXT_VERS}" == "" ] && EXT_VERS=$(cat version)
+    VERSION=$EXT_VERS
+
+
+    ################
+    ### DOWNLOAD ###
+    ################
+    screenPOS 23 1 && screenWIPE
+    screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Downloading Source Code${NORMAL} "
+    [ ! -f ${EXT_FUNC}-${VERSION}.zip ] && wget -q https://github.com/OpenAoE/${EXT_FUNC}/archive/refs/tags/${EXT_FUNC}-${VERSION}.zip
+
+    screenPOS 23 1 && screenWIPE
+    screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Extracting Source Code${NORMAL} "
+    [ ! -d ${EXT_FUNC}-${VERSION} ] && unzip ${EXT_FUNC}-${VERSION}.zip >/dev/null 2>&1 && mv ${EXT_FUNC}-${EXT_FUNC}-${VERSION} ${EXT_FUNC}-${VERSION}
+
+
+    ###############
+    ### COMPILE ###
+    ###############
+    screenPOS 23 1 && screenWIPE
+    screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Compiling Source Code${NORMAL} ${CURSOROFF}"
+
+    cd $CUR/${EXT_FUNC}-${EXT_VERS}
+#    test=$(cat Makefile | grep "/usr/local")
+#    if [ "${test}" == "" ]; then
+#        sed -i 's/PREFIX \= /PREFIX \= \/usr\/local/g' Makefile
+#    fi
+
+    cd $CUR/${EXT_FUNC}-${EXT_VERS}
+    make -j$(nproc) > $CUR/app_compile.log 2>&1 || exit 1
+    sync; sync
+#    rotdash $!
+#    echo -n " "
+
+    echo >> $CUR/app_compile.log
+    echo >> $CUR/app_compile.log
+    echo >> $CUR/app_compile.log
+    echo >> $CUR/app_compile.log
+    sync; sync
+
+    cd $CUR/${EXT_FUNC}-${EXT_VERS}
+#    echo "DESTDIR=${CUR}/out"
+    make DESTDIR="${CUR}/out" install >> $CUR/app_compile.log 2>&1 || exit 1
+    echo -n "${CURSORON}"
+
+    cd $CUR/out
+    stripper
+
+#    echo "${CURSORON}EXIT"; exit
+
+    cd $CUR
+    mksquashfs out $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.nix > $CUR/app_squash.log 2>&1
+
+    md5sum ${EXT_FUNC}__${EXT_VERS}__${SXX}.nix > $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.md5
+    SIZE=$(ls -la $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.nix | awk '{print $5}')
+    [ $SIZE -gt 1024 ] && SZX="KB" && SIZE=$(expr $SIZE / 1024)
+    [ $SIZE -gt 1024 ] && SZX="MB" && SIZE=$(expr $SIZE / 1024)
+    [ $SIZE -gt 1024 ] && SZX="GB" && SIZE=$(expr $SIZE / 1024)
+
+    FN=$CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.nfo
+    echo "Title:             $EXT_NAME" > $FN
+    echo "Description:       $EXT_NAME ATA Over Ethernet" >> $FN
+    echo "Version:           $VERSION" >> $FN
+    echo "Author:            $EXT_AUTH" >> $FN
+    echo "Original-site:     $EXT_SITE" >> $FN
+    echo "Copying-policy:    Copyright (C) 2005 to Current" >> $FN
+    echo "Size:              $SIZE $SZX" >> $FN
+    echo "Extension_by:      CentralWare Development Centers" >> $FN
+    echo "Tags:              ATA Over Ethernet AoE VBlade AoE Tools" >> $FN
+    echo "Comments:          Compiled With SimpleNix" >> $FN
+    echo "Current:           $(date '+%F%n') by CentralWare" >> $FN
+    echo "Signature:         $(cat $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.md5 | awk '{print $1}')" >> $FN
+    #[ ! "${$EXT_DEPS}" == "" ] && 
+    echo "Depends:           $EXT_DEPS" >> $FN
+    echo "Change-log:        ----" >> $FN
+
+    cd $CUR/out
+    find . -type f > $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.lst
+    sed -i 's/.\/usr/\/usr/g' $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.lst
+
+    screenPOS 23 1 && screenWIPE
+    echo "${CURSORON}"
+

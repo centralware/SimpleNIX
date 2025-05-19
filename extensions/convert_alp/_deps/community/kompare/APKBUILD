@@ -1,0 +1,51 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=kompare
+pkgver=24.05.2
+pkgrel=0
+# armhf blocked by extra-cmake-modules
+arch="all !armhf"
+url="https://kde.org/applications/development/org.kde.kompare"
+pkgdesc="Graphical File Differences Tool"
+license="GPL-2.0-or-later AND GFDL-1.2-only"
+makedepends="
+	extra-cmake-modules
+	kcodecs5-dev
+	kconfig5-dev
+	kcoreaddons5-dev
+	kdoctools5-dev
+	kiconthemes5-dev
+	kjobwidgets5-dev
+	kparts5-dev
+	ktexteditor5-dev
+	kwidgetsaddons5-dev
+	libkomparediff2-dev
+	qt5-qtbase-dev
+	samurai
+	"
+subpackages="$pkgname-doc $pkgname-lang"
+_repo_url="https://invent.kde.org/sdk/kompare.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/kompare-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+fc6692a945f9603a59865c5a032fdddf6cf05c752076931bd28532c97bd7f43411d28f69b50ed1243977f2e763f69bdd88fed32dcc7198f584d65d48e1b70338  kompare-24.05.2.tar.xz
+"

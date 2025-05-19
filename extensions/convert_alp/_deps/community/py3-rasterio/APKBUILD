@@ -1,0 +1,53 @@
+# Contributor: Holger Jaekel <holger.jaekel@gmx.de>
+# Maintainer: Holger Jaekel <holger.jaekel@gmx.de>
+pkgname=py3-rasterio
+pkgver=1.3.10
+pkgrel=0
+pkgdesc="Fast and direct raster I/O for use with Numpy and SciPy"
+url="https://pypi.org/project/rasterio"
+arch="all"
+license="BSD-3-Clause"
+depends="
+	py3-affine
+	py3-attrs
+	py3-boto3
+	py3-click
+	py3-click-plugins
+	py3-cligj
+	py3-matplotlib
+	py3-numpy
+	py3-setuptools
+	py3-snuggs
+	"
+makedepends="
+	cython
+	gdal-dev
+	py3-numpy-dev
+	python3-dev
+	"
+checkdepends="
+	gdal-driver-HDF5
+	gdal-tools
+	pytest
+	py3-hypothesis
+	py3-shapely
+	"
+subpackages="$pkgname-pyc"
+source="rasterio-$pkgver.tar.gz::https://github.com/mapbox/rasterio/archive/$pkgver.tar.gz"
+builddir="$srcdir/rasterio-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+check() {
+	python3 setup.py test
+}
+
+package() {
+	python3 setup.py install --skip-build --root="$pkgdir"
+}
+
+sha512sums="
+ff4ff5b1d67824669d4ec21e6fe1368ff05b00644c341392ee1807752536f4f77d3fbb13fd61aacd6943563ea24211fe9cad99609da20c58c42fa696df38f6eb  rasterio-1.3.10.tar.gz
+"

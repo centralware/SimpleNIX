@@ -1,0 +1,55 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-frameworks
+pkgname=kcalendarcore
+pkgver=6.5.0
+pkgrel=0
+pkgdesc="The KDE calendar access library"
+arch="all !armhf" # armhf blocked by extra-cmake-modules
+url="https://community.kde.org/Frameworks"
+license="LGPL-2.0-or-later"
+depends_dev="
+	libical-dev
+	qt6-qtbase-dev
+	"
+makedepends="$depends_dev
+	doxygen
+	extra-cmake-modules
+	graphviz
+	qt6-qttools-dev
+	samurai
+	"
+checkdepends="
+	perl
+	xcb-util-cursor
+	xvfb-run
+	"
+subpackages="$pkgname-dev $pkgname-doc"
+_repo_url="https://invent.kde.org/frameworks/kcalendarcore.git"
+source="https://download.kde.org/stable/frameworks/${pkgver%.*}/kcalendarcore-$pkgver.tar.xz"
+
+replaces="kcalcore"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_QCH=ON
+	cmake --build build
+}
+
+check() {
+	# testrecurtodo, testreadrecurrenceid, testicaltimezones, testmemorycalendar and testtimesininterval are broken
+	xvfb-run ctest --test-dir build --output-on-failure -E "(RecursOn|test(readrecurrenceid|icaltimezones|memorycalendar|timesininterval|dateserialization|incidence|icalformat|identical|startdatetimesfordate|occurrenceiterator))"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+1f8618eb13cc021a54286c7d13c9ff5d784654bed845ce046c709b3474604229cd78ccbf290ab3d3c80cc8e7bf0dc9358b37de8f9ee9b10764a5028df5968548  kcalendarcore-6.5.0.tar.xz
+"

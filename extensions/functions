@@ -1,0 +1,683 @@
+#!/bin/sh
+
+[ -f /proc/cmdline ] || /bin/mount /proc
+CMDLINE=""
+CMDLINE=" $(cat /proc/cmdline)"
+
+# ANSI COLORS
+CRE="$(echo -e '\r\033[K')";            RED="$(echo -e '\033[1;31m')"
+GREEN="$(echo -e '\033[1;32m')";        YELLOW="$(echo -e '\033[1;33m')"
+BLUE="$(echo -e '\033[1;34m')";         MAGENTA="$(echo -e '\033[1;35m')"
+CYAN="$(echo -e '\033[1;36m')";         WHITE="$(echo -e '\033[1;37m')"
+ORANGE="$(echo -e '\033[38;5;208m')";   BROWN="$(echo -e '\033[38;5;94m')"
+PINK="$(echo -e '\033[38;5;213m')";     GREY="$(echo -e '\033[38;5;241m')"
+SPOS="$(echo -e '\033[s')";             RPOS="$(echo -e '\033[u')"
+NORMAL="$(echo -e '\033[0;39m')";       BLACK="$(echo -e '\033[1;0m')"
+CURSOROFF="$(echo -e '\033[?25l')";     CURSORON="$(echo -e '\033[?25h')"
+
+title()
+{
+    TITLE="${CYAN}        ######
+       ##    ## ####
+       ##        ##  ##     ##
+        ######   ##  ###   ### ########
+             ##  ##  #### #### ##     ## ##
+       ##    ##  ##  ## ### ## ##     ## ##       ########
+        ######   ##  ##     ## ########  ##       ##
+                #### ##     ## ##        ##       ##             ^^^^^
+                     ##     ## ##        ##       ######        ^^   ^^
+                   ^           ##        ##       ##            ^ 0 0 ^
+  ######          ^^^                    ######## ##           ^   V   ^
+    ##             ^                              ########    ^^       ^^
+    ##         ###    ### ####   ###    ###  ##### #####     ^          ^^
+    ##        #  ##    ###    ##  ##     ##    ##   ##      ^            ^^
+    ##       #   ##    ##     ##  ##     ##      ###        ^  ^      ^  ^^^
+    ##          ###    ##     ##  ##     ##      ###       @@^^        ^ ^@@
+    ##       # ###     ##     ##  ##     ##     ## ##    @@@@@@^       ^@@@@@@
+    ##      ## ### #   ##     ##  ###   ###    ##   ##   @@@@@@@^ CDC ^@@@@@@@
+  ############  ###   ####   ####   #### ### ##### #####   @@@@@^^^^^^^@@@@@
+"
+TITLE=${TITLE//^/${WHITE}#${CYAN}} && TITLE=${TITLE//@/${YELLOW}@${CYAN}} && echo "${TITLE}"
+}
+
+
+screenPOS()
+{
+    X=$1; Y=$2; echo -ne "\033[${X};${Y}H"
+}
+
+screenMODE()
+{
+    MODE=$1
+    [ "${MODE}" == "" ] && MODE=3
+    echo -ne "\033[=${MODE}h"
+    echo -ne "\033[=${MODE}l"
+}
+
+screenSIZE()
+{
+    COLS=$(resize | awk -F";" '{print $1}' | awk -F"=" '{print $2}')
+    LINE=$(resize | awk -F";" '{print $2}' | awk -F"=" '{print $2}')
+    echo "${COLS}x${LINE}"
+}
+
+screenCOLS()
+{
+    echo $(screenSIZE | awk -Fx '{print $1}')
+}
+
+screenLINES()
+{
+    echo $(screenSIZE | awk -Fx '{print $2}')
+}
+
+screenWIPE()
+{
+    COLS=$(screenCOLS)
+    echo -n "${SPOS}"
+    for I in $(seq 1 $COLS)
+    do
+        echo -n " "
+    done
+    echo -n "${RPOS}"
+}
+
+screenBG()
+{
+    COLOR=$1
+    case $COLOR in
+        RED) COLOR=1 ;;
+        GREEN) COLOR=2 ;;
+        YELLOW) COLOR=3 ;;
+        BLUE) COLOR=4 ;;
+        MAGENTA) COLOR=5 ;;
+        CYAN) COLOR=6 ;;
+        WHITE) COLOR=7 ;;
+        ORANGE) COLOR=130 ;;
+        BROWN) COLOR=94 ;;
+        BLACK) COLOR=0 ;;
+    esac
+    echo -ne "\033[48;5;${COLOR}m"
+}
+
+colorFG()
+{
+    COLOR=$1
+    case $COLOR in
+        RED) COLOR=9 ;;
+        GREEN) COLOR=10 ;;
+        YELLOW) COLOR=11 ;;
+        BLUE) COLOR=12 ;;
+        MAGENTA) COLOR=13 ;;
+        CYAN) COLOR=14 ;;
+        WHITE) COLOR=15 ;;
+        ORANGE) COLOR=208 ;;
+        BROWN) COLOR=94 ;;
+    esac
+    echo -ne "\033[38;5;${COLOR}m"
+}
+
+colorBG()
+{
+    COLOR=$1
+    case $COLOR in
+        RED) COLOR=1 ;;
+        GREEN) COLOR=2 ;;
+        YELLOW) COLOR=3 ;;
+        BLUE) COLOR=4 ;;
+        MAGENTA) COLOR=5 ;;
+        CYAN) COLOR=6 ;;
+        WHITE) COLOR=7 ;;
+        ORANGE) COLOR=130 ;;
+        BROWN) COLOR=94 ;;
+    esac
+    echo -ne "\033[48;5;${COLOR}m"
+}
+
+
+function resources()
+{
+    CNT=1; BINARY=0; CURDIR=$(pwd)
+    if [ ! -d $CURDIR/.res ]; then
+        while read -r line
+        do
+            CNT=$(expr $CNT + 1)
+            [ "${line}" == "#@# END OF SCRIPT #@#" ] && BINARY=$CNT && break
+            [ "${line}" == "#!# END OF SCRIPT #!#" ] && BINARY=$CNT && break
+        done < $CURDIR/$0
+        if [ ! "${BINARY}" == "0" ]; then
+            echo "${ORANGE}Extracting Local Resources${NORMAL}"
+            tail -n +${BINARY} $CURDIR/$0 > extract.tar.gz || exit 1
+            mkdir -p $CURDIR/.res
+            cd $CURDIR/.res
+            tar -zxf ../extract.tar.gz
+            rm ../extract.tar.gz
+            cd $CURDIR
+        fi
+    fi
+}
+resources
+
+
+tick()
+{
+    TIMESTAMP="$(date +%s)"
+}
+tick
+
+ticktock()
+{
+    TIMESTAMP=$(($(date +%s)-TIMESTAMP))
+    H=0 && M=0 && S=$TIMESTAMP
+    if [ $S -gt 59 ]; then
+        M=$(expr $S \/ 60)
+        SS=$(expr $M \* 60)
+        S=$(expr $S - $SS)
+    fi
+    if [ $M -gt 59 ]; then
+        H=$(expr $M \/ 60)
+        SM=$(expr $H \* 60)
+        M=$(expr $M - $SM)
+    fi
+    echo "${H}h ${M}m ${S}s"
+}
+
+
+trim() { echo $1; }
+
+
+stringinfile()
+{
+    case "$(cat $2)" in *$1*) return 0;; esac
+    return 1
+}
+
+
+stringinstring()
+{
+    case "$2" in *$1*) return 0;; esac
+    return 1
+}
+
+
+getbootparam()
+{
+    stringinstring " $1=" "$CMDLINE" || return 1
+    result="${CMDLINE##* $1=}"
+    result="${result%%[ 	]*}"
+    echo "$result"
+    return 0
+}
+
+
+checkbootparam()
+{
+    stringinstring " $1" "$CMDLINE"
+    return "$?"
+}
+
+
+getparam()
+{
+    stringinstring " $1=" "$2" || return 1
+    result="${2##*$1=}"
+    result="${result%%[ 	]*}"
+    echo "$result"
+    return 0
+}
+
+
+getbasefile()
+{
+    echo -e "${1##*/}"|awk -v n="$2" '{for (i=n; i>0; i--) sub(/\.[^\.]*$/, ""); print;}'
+    return 0
+}
+
+mounted()
+{
+    grep $1 /etc/mtab >/dev/null 2>&1
+    if [ $? == 0 ]; then return 0; fi
+    return 1
+}
+
+
+getpasswd()
+{
+  readpassword()
+  {
+    PASSWD=""
+    until [ ${#PASSWD} -ge 8 ] && [ ${#PASSWD} -le 56 ]; do
+      PASSWD=""
+      if [ "$2" == "confirm" ]; then
+        echo
+        echo -n "${BLUE} Re-enter${NORMAL}: "
+      else
+        echo -n "${BLUE}Enter password (8 to 56 characters) for ${YELLOW}$1${NORMAL}: "
+      fi
+      read -s PASSWD
+      [ ${#PASSWD} -lt 8 ] && echo " Password is too short!"
+      [ ${#PASSWD} -gt 56 ] && echo " Password is too long!"
+    done
+  }
+  OK=0
+  until [ "$OK" == 1 ]; do
+    readpassword $1
+    PASSWD1=$PASSWD
+    readpassword $1 confirm
+    if [ "$PASSWD1" == "$PASSWD" ]; then
+      OK=1
+      echo " ${GREEN}Accepted.${NORMAL}"
+    else
+      echo " ${RED}Mismatch.${NORMAL}"
+    fi
+  done
+  return 0
+}
+
+
+status()
+{
+  local CHECK=$?
+  echo -en "\\033[70G[ "
+  if [ $CHECK = 0 ]; then
+    echo -en "\\033[1;33mOK"
+  else
+    echo -en "\\033[1;31mFailed"
+  fi
+  echo -e "\\033[0;39m ]"
+}
+
+
+usleep_progress()
+{
+# Wait 2 seconds
+  CHAR='.'
+  for i in `seq 1 79`
+  do
+    echo -n "$CHAR"
+    usleep 25316
+  done
+  echo "$CHAR"
+}
+
+
+checkroot() {
+ if [ `/usr/bin/id -u` -ne 0 ]; then
+   echo "Need root privileges." >&2
+   exit 1
+ fi
+}
+ 
+checknotroot()
+{
+    if [ `/usr/bin/id -u` -eq 0 ]; then
+        echo "Do not run this as root." >&2
+        exit 1
+    fi
+}
+
+
+showapp()
+{
+    TOP="################################################################################"
+    APP="$1"
+    SHW="## $APP ##"
+    LEN=${#SHW}
+    TOP=${TOP:0:${LEN}}
+    BOT="################################################################################"
+    echo "${BLUE}$TOP"
+    echo "${BLUE}## ${CYAN}${APP} ${BLUE}##"
+    echo "${BLUE}${BOT}${NORMAL}"
+}
+
+
+nproc()
+{
+    # Count "Processor : # lines" in cpuinfo, add one to the result - used for "make -j${VALUE}" and the likes
+    expr 1 + $(cat /proc/cpuinfo | grep processor | awk -F: '{print $2}' | grep -Eo '[0-9]{0,9}' | tail -n 1)
+}
+
+
+getCPU()
+{
+    # Function largely updated via @Rich's CASE set #
+
+    CPU=`uname -m`
+
+#    [ "${OPTIMIZE}" == "" ] && OPTIMIZE="-Os"
+#    [ "${SYMBOLS}" == "" ] && SYMBOLS="-g"
+#    [ "${FLTO}" == "" ] && FLTO="-flto"
+#    [ "${DEFINES}" == "" ] && DEFINES="-DX_DISPLAY_MISSING"
+
+    CPU_TYPE=$CPU
+    case "$CPU" in
+        i286)
+            [ "${OPTIMIZE}" == "" ] && OPTIMIZE="-Os"
+            [ "${SYMBOLS}" == "" ] && SYMBOLS="-m16"
+            CFLAGS="$FLTO -fuse-linker-plugin -march=i286 -mtune=i286 $OPTIMIZE $SYMBOLS $DEFINES -pipe -Wall -Wextra -fno-plt"
+            CXXFLAGS="$FLTO -fuse-linker-plugin -march=i286 -mtune=i286 $OPTIMIZE $SYMBOLS -pipe -Wall -Wextra -fno-exceptions -fno-rtti"
+            LDFLAGS="-Wl,-T/usr/local/lib/ldscripts/elf_i386.xbn"
+            CPU_TYPE="UNSUPPORTED" # Discontinued 01-01-2011 CENTRALWARE - SUPPORT NOT OFFERED
+            ;;
+        i386)
+            [ "${OPTIMIZE}" == "" ] && OPTIMIZE="-Os"
+            [ "${SYMBOLS}" == "" ] && SYMBOLS="-m16"
+            CFLAGS="$FLTO -fuse-linker-plugin -march=i386 -mtune=i386 $OPTIMIZE $SYMBOLS $DEFINES -pipe -Wall -Wextra -fno-plt"
+            CXXFLAGS="$FLTO -fuse-linker-plugin -march=i386 -mtune=i386 $OPTIMIZE $SYMBOLS -pipe -Wall -Wextra -fno-exceptions -fno-rtti"
+            LDFLAGS="-Wl,-T/usr/local/lib/ldscripts/elf_i386.xbn"
+            CPU_TYPE="UNSUPPORTED" # Discontinued 01-01-2011 CENTRALWARE - SUPPORT NOT OFFERED
+            ;;
+        i486)
+            CFLAGS="$FLTO -fuse-linker-plugin -march=i486 -mtune=i486 $OPTIMIZE $SYMBOLS $DEFINES -pipe -Wall -Wextra -fno-plt"
+            CXXFLAGS="$FLTO -fuse-linker-plugin -march=i486 -mtune=i486 $OPTIMIZE $SYMBOLS -pipe -Wall -Wextra -fno-exceptions -fno-rtti"
+            LDFLAGS="-Wl,-T/usr/local/lib/ldscripts/elf_i386.xbn"
+            CPU_TYPE="UNSUPPORTED" # Discontinued 01-01-2025 CENTRALWARE
+            CPU_TYPE="x86" ## Should still compile and possibly operate, but UNSUPPORTED by staff as 486 hardware has been disposed of
+            ;;
+        i586)
+            CFLAGS="$FLTO -fuse-linker-plugin -march=i486 -mtune=i586 $OPTIMIZE $SYMBOLS $DEFINES -pipe -Wall -Wextra -fno-plt"
+            CXXFLAGS="$FLTO -fuse-linker-plugin -march=i486 -mtune=i586 $OPTIMIZE $SYMBOLS -pipe -Wall -Wextra -fno-exceptions -fno-rtti"
+            LDFLAGS="-Wl,-T/usr/local/lib/ldscripts/elf_i386.xbn"
+            CPU_TYPE="x86"
+            ;;
+        i686)
+            CFLAGS="$FLTO -fuse-linker-plugin -march=i486 -mtune=i686 $OPTIMIZE $SYMBOLS $DEFINES -pipe -Wall -Wextra -fno-plt"
+            CXXFLAGS="$FLTO -fuse-linker-plugin -march=i486 -mtune=i686 $OPTIMIZE $SYMBOLS -pipe -Wall -Wextra -fno-exceptions -fno-rtti"
+            LDFLAGS="-Wl,-T/usr/local/lib/ldscripts/elf_i386.xbn"
+            CPU_TYPE="x86"
+            ;;
+        x86_64)
+            CFLAGS="$FLTO -fuse-linker-plugin -mtune=generic $OPTIMIZE $SYMBOLS $DEFINES -pipe -Wall -Wextra -fno-plt"
+            CXXFLAGS="$FLTO -fuse-linker-plugin -mtune=generic $OPTIMIZE $SYMBOLS -pipe -Wall -Wextra -fno-exceptions -fno-rtti"
+            LDFLAGS="-Wl,-T/usr/local/lib/ldscripts/elf_x86_64.xbn"
+            ;;
+        armv*)
+            CFLAGS="-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp $OPTIMIZE $SYMBOLS $DEFINES -pipe -Wall -Wextra"
+            CXXFLAGS="-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp $OPTIMIZE $SYMBOLS -pipe -Wall -Wextra -fno-exceptions -fno-rtti"
+            LDFLAGS="-Wl,-O1"
+            ;;
+        aarch64)
+            CFLAGS="-march=armv8-a+crc -mtune=cortex-a72 $OPTIMIZE $SYMBOLS $DEFINES -pipe -Wall -Wextra"
+            CXXFLAGS="-march=armv8-a+crc -mtune=cortex-a72 $OPTIMIZE $SYMBOLS -pipe -Wall -Wextra -fno-exceptions -fno-rtti"
+            LDFLAGS="-Wl,-O1"
+            ;;
+        risc*)
+            echo "Risc Processors NOT YET Supported."
+            exit 1
+            ;;
+        ky-*)
+            echo "Risc-V Processors NOT YET Supported."
+            exit 1
+            ;;
+        *)
+            echo "$PROCESSOR_TYPE: Unknown processor type. Please add an entry for it in this script."
+            exit
+            ;;
+    esac
+    export CFLAGS CXXFLAGS LDFLAGS CPU CPU_TYPE
+}
+
+
+stripper()
+{
+    oPATH=$(pwd); sPATH="${@}"
+    if [ "$GDEBUG" == "No" ]; then
+        cd $sPATH
+        sudo find . | xargs file | grep "executable" | grep ELF | grep "not stripped" | cut -f 1 -d : | xargs strip --strip-all 2> /dev/null
+        sudo find . | xargs file | grep "shared object" | grep ELF | grep "not stripped" | cut -f 1 -d : | xargs strip --strip-unneeded 2> /dev/null
+        cd $oPATH
+    fi
+}
+
+
+function comp_version()
+{
+    echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }';
+}
+
+function versionRealMinMax()
+{
+    # REAL must be >= MIN and <= MAX #
+    vREAL=$1; vMIN=$2; vMAX=$3
+    vRESP=0
+    if [ ! "${vMIN}" == "" ]; then
+        if [ $(comp_version $vREAL) -gt $(comp_version $vMIN) ]; then
+            JUNK=0
+        elif [ $(comp_version $vREAL) -lt $(comp_version $vMIN) ]; then
+            vRESP=1
+        else
+            JUNK=0
+        fi
+    fi
+    if [ ! "${vMAX}" == "" ]; then
+        if [ $(comp_version $vREAL) -gt $(comp_version $vMAX) ]; then
+            vRESP=1
+        elif [ $(comp_version $vREAL) -lt $(comp_version $vMAX) ]; then
+            JUNK=0
+        else
+            JUNK=0
+        fi
+    fi
+    echo $vRESP
+}
+
+function validate()
+{
+    ERRS=0
+    EXT=$1
+    APP=$(echo $EXT | awk -F: '{print $1}')
+    MN=$(echo $EXT | awk -F: '{print $2}')
+    MX=$(echo $EXT | awk -F: '{print $3}')
+    if [ -f /tmp/extmounts/${APP}.nfo ]; then
+        VR=$(cat /tmp/extmounts/${APP}.nfo | grep "version:" | awk -F: '{print $2}')
+        if [ ! "${VR}" == "" ]; then
+            TEST=$(versionRealMinMax $VR $MN $MX)
+            [ "${TEST}" == "1" ] && ERRS=1
+        fi
+    fi
+    echo $ERRS
+}
+
+
+extclean()
+{
+    who=$(whoami)
+    [ "${1}" == "quiet" ] && QUIET="Yes" && shift
+    [ ! "${QUIET}" == "Yes" ] && echo -n "${CYAN}Unloading all extensions${NORMAL} "
+    cd /tmp/tcloop
+    if [ "${who}" == "root" ]; then
+        umount * >/dev/null 2>&1
+        rmdir * >/dev/null 2>&1
+        rm /usr/local/tce.installed/* -f
+    else
+        sudo umount * >/dev/null 2>&1
+        sudo rmdir * >/dev/null 2>&1
+        sudo rm /usr/local/tce.installed/* -f
+    fi
+    [ ! "${QUIET}" == "Yes" ] && echo
+}
+
+
+extload()
+{
+    who=$(whoami)
+    QUIET="No"; [ "${1}" == "quiet" ] && QUIET="Yes" && shift
+
+    [ ! "${QUIET}" == "Yes" ] && echo -n "${CYAN}Loading Extensions${NORMAL}: "
+    CNT=0
+
+    for LISTEXT in $@
+    do
+        vEXT=${LISTEXT/.tcz/}
+
+        vMAX=$(echo "${vEXT}" | awk -F: '{print $3}')
+        vMIN=$(echo "${vEXT}" | awk -F: '{print $2}')
+        vEXT=$(echo "${vEXT}" | awk -F: '{print $1}')
+
+        [ ! "${QUIET}" == "Yes" ] && [ $CNT -gt 4 ] && echo && echo -n "                    " && CNT=0
+        [ ! "${QUIET}" == "Yes" ] && echo -n "${YELLOW}${vEXT}${NORMAL} "
+
+        if [ ! "${vEXT}" == "" ]; then
+
+            if [ ! -f /etc/sysconfig/tcedir/optional/${vEXT}.tcz ]; then
+                [ ! "${QUIET}" == "Yes" ] && echo -n "${SPOS}${MAGENTA}DL${NORMAL} "
+                if [ "${who}" == "root" ]; then
+                    su -c "tce-load -w $vEXT >/tmp/extload.log 2>&1" tc
+                else
+                    tce-load -w $vEXT >/tmp/extload.log 2>&1
+                fi
+                echo -n "${RPOS}  "; echo -n "${RPOS}"
+            fi
+
+            if [ ! -d /tmp/tcloop/${vEXT} ]; then
+                [ ! "${QUIET}" == "Yes" ] && echo -n "${SPOS}${MAGENTA}IN${NORMAL} "
+                if [ "${who}" == "root" ]; then
+                    su -c "tce-load -i $vEXT >/tmp/extload.log 2>&1" tc
+                else
+                    tce-load -i $vEXT >/tmp/extload.log 2>&1
+                fi
+                echo -n "${RPOS}  "; echo -n "${RPOS}"
+            fi
+
+            MAX=""; MIN=""; VR=""; EXT=""; TEST=""
+            CNT=$(expr $CNT + 1)
+
+        fi
+    done
+    [ ! "${QUIET}" == "Yes" ] && echo
+
+}
+
+
+extinstall()
+{
+    who=$(whoami)
+    QUIET="No"; [ "${1}" == "quiet" ] && QUIET="Yes" && shift
+    [ ! "${QUIET}" == "Yes" ] && echo -n "${CYAN}Loading Extensions${NORMAL}: "
+    for EXT in $@
+    do
+        EXT=${EXT/.tcz/}
+        [ ! "${QUIET}" == "Yes" ] && echo -n "${YELLOW}${EXT}${NORMAL} "
+        if [ ! -f /etc/sysconfig/tcedir/optional/${EXT}.tcz ]; then
+            [ ! "${QUIET}" == "Yes" ] && echo -n "${SVPOS}${MAGENTA}DL${NORMAL} "
+            if [ "${who}" == "root" ]; then
+                su -c "tce-load -wi $EXT >/tmp/extload.log 2>&1" tc
+            else
+                tce-load -w $EXT >/tmp/extload.log 2>&1
+            fi
+            echo -n "${RSPOS}  "; echo -n "${RSPOS}"
+        fi
+        if [ ! -d /tmp/tcloop/${EXT} ]; then
+            [ ! "${QUIET}" == "Yes" ] && echo -n "${SVPOS}${MAGENTA}IN${NORMAL} "
+            if [ "${who}" == "root" ]; then
+                su -c "tce-load -i $EXT >/tmp/extload.log 2>&1" tc
+            else
+                tce-load -i $EXT >/tmp/extload.log 2>&1
+            fi
+            echo -n "${RSPOS}  "; echo -n "${RSPOS}"
+        fi
+    done
+    [ ! "${QUIET}" == "Yes" ] && echo
+}
+
+
+buildprep()
+{
+    extclean && extload compiledtc bc make automake autoconf git wget
+    getCPU
+    export CFLAGS CXXFLAGS LDFLAGS CPU CPU_TYPE
+    set
+}
+
+
+bytes()
+{
+    SIZE=$1; SFX="B"
+    [ $SIZE -gt 1023 ] && SIZE=$(expr $SIZE \/ 1024) && SFX="KB"
+    [ $SIZE -gt 1023 ] && SIZE=$(expr $SIZE \/ 1024) && SFX="MB"
+    [ $SIZE -gt  999 ] && SIZE=$(expr $SIZE \/ 1000) && SFX="GB"
+    [ $SIZE -gt  999 ] && SIZE=$(expr $SIZE \/ 1000) && SFX="TB"
+    echo "${SIZE}${SFX}"
+}
+
+
+nodot()
+{
+    FILE=$1
+    cat $FILE | cut -c 2- > newinfo                     # Remove preceeding period from ./usr/local
+    cat newinfo > $FILE
+    rm newinfo -f
+}
+
+
+
+
+token()
+{
+    echo "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"
+}
+
+escaped()
+{
+    echo $1 | sed -r 's/([\$\.\*\/\[\\^])/\\\1/g' | sed 's/[]]/\[]]/g'
+}
+
+extractCommand()
+{
+    # Find the filename's extension and determine
+    # what command/function/etc is needed to extract
+    # NOTE: VERSION is also divided by periods just
+    #       to make things more interesting!
+    case $1 in
+        # Start with the TAR archives
+        *.tar)      echo "tar -xf FILENAME" ;;
+        *.tar.gz)   echo "tar -zxf FILENAME" ;;
+        *.tar.bz2)  echo "tar -jxf FILENAME" ;;
+
+        # Move onto the combo names
+        *.tgz)      echo "tar -zxf FILENAME" ;;
+        *.txz)      echo "tar -xf FILENAME" ;;
+
+        # Move onto the direct archives
+        *.7z)       echo "7z x -so FILENAME" ;;
+        *.rar)      echo "unrar x -r FILENAME" ;;
+        *.ace)      echo "" ;;
+        *.alz)      echo "unz -x FILENAME" ;;
+        *.ar)       echo "ar x FILENAME" ;;
+        *.arj)      echo "atool x FILENAME" ;;
+        *.jar)      echo "unzip FILENAME" ;;
+        *.ear)      echo "jar xf FILENAME" ;;
+        *.war)      echo "unzip FILENAME" ;;
+        *.lha)      echo "" ;;
+        *.lzh)      echo "" ;;
+        *.bz)       echo "tar -jxf FILENAME" ;;
+        *.gz)       echo "gunzip FILENAME" ;;
+        *.xz)       echo "tar -xf FILENAME" ;;
+        *.zip)      echo "unzip -a FILENAME" ;;
+
+        *.cab)      echo "" ;;
+        *.cpio)     echo "" ;;
+        *.cpio.gz)  echo "zcat FILENAME | cpio -idmv --no-absolute-filenames" ;;
+        *.deb)      echo "" ;;
+        *.iso)      echo "" ;;
+        *.rpm)      echo "" ;;
+
+        *)          echo "UNKNOWN" ;;
+    esac
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,37 @@
+# Maintainer: Hoang Nguyen <folliekazetani@protonmail.com>
+pkgname=pulumi-language-dotnet
+pkgver=3.65.0
+pkgrel=0
+pkgdesc="Infrastructure as Code SDK (.NET language provider)"
+url="https://pulumi.com/"
+# blocked by pulumi
+arch="x86_64 aarch64"
+license="Apache-2.0"
+depends="pulumi"
+makedepends="go"
+source="$pkgname-$pkgver.tar.gz::https://github.com/pulumi/pulumi-dotnet/archive/refs/tags/v$pkgver.tar.gz"
+builddir="$srcdir/pulumi-dotnet-$pkgver/pulumi-language-dotnet"
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	mkdir -p bin
+
+	go build -v \
+		-o bin/pulumi-language-dotnet \
+		-ldflags "-X github.com/pulumi/pulumi-dotnet/pulumi-language-dotnet/version.Version=v$pkgver"
+}
+
+check() {
+	go test ./...
+}
+
+package() {
+	install -Dm755 bin/pulumi-language-dotnet -t "$pkgdir"/usr/bin/
+}
+
+sha512sums="
+55ff23b7288e43ae9647cbf2a65a9895a640105ef5495862f4b27f5e7a8a78846e55261d70988693cb952f40ca7cccc16fbe204371e2b50a56ddd1bb77b7509c  pulumi-language-dotnet-3.65.0.tar.gz
+"

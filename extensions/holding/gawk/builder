@@ -1,0 +1,110 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=gawk
+pkgver=5.3.0
+pkgrel=1
+pkgdesc="GNU awk pattern-matching language"
+url="https://www.gnu.org/software/gawk/gawk.html"
+arch="all"
+license="GPL3"
+checkdepends="coreutils diffutils"
+source="https://ftp.gnu.org/gnu/gawk/gawk-$pkgver.tar.xz"
+patches="echild-strerror.patch fix-str2wstr.patch"
+pkgfile="${pkgname}-${pkgver}.tar.xz"
+pkgdir="${pkgname}-${pkgver}"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    echo "Getting current version information..."
+    [ "${pkgver}" == "" ] && get_version
+
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -xf ${pkgfile}
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_patches()
+{
+    cd $CUR/src/${pkgdir}
+    for PATCH in $patches
+    do
+        patch -Np1 -i $CUR/_patches/${PATCH}
+    done
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+
+    sed -i test/Makefile.in -e "/clos1way6/d"
+    src_patches
+
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring...${NORMAL}"
+        CPU=$(GetProcessorType)
+
+        CFLAGS="$CFLAGS -flto=auto" \
+            ./configure \
+            --prefix=/usr/local \
+            --sysconfdir=/usr/local/etc \
+            --mandir=/usr/local/share/man \
+            --infodir=/usr/local/share/info \
+            --disable-nls \
+            --disable-pma > \
+            $CUR/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+
+#    echo "${CYAN}Testing...${NORMAL}"
+#    make -j$(nproc) check > $CUR/_testing.log 2>&1 || exit 1
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget automake autoconfig
+
+src_build

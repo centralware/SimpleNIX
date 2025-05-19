@@ -1,0 +1,50 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-plasma
+pkgname=plasma-nano
+pkgver=6.1.4
+pkgrel=0
+pkgdesc="A minimal Plasma shell package intended for embedded devices"
+# armhf blocked by extra-cmake-modules
+arch="all !armhf"
+url="https://invent.kde.org/kde/plasma-nano"
+license="GPL-2.0-or-later AND LGPL-2.1-or-later"
+makedepends="
+	extra-cmake-modules
+	kitemmodels-dev
+	kwayland-dev
+	kwindowsystem-dev
+	libplasma-dev
+	qt6-qtbase-dev
+	qt6-qtdeclarative-dev
+	samurai
+	"
+
+case "$pkgver" in
+	*.90*) _rel=unstable;;
+	*) _rel=stable;;
+esac
+_repo_url="https://invent.kde.org/plasma/plasma-nano.git"
+source="https://download.kde.org/stable/plasma/$pkgver/plasma-nano-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+f71f2e098b2db805785815f2b9fbd403040bafae566807404221bc0b9b1251b49c7e4360b336fc56f7f316ea5fe1805a77867c90bad8513b2c04f5d10e402d9e  plasma-nano-6.1.4.tar.xz
+"

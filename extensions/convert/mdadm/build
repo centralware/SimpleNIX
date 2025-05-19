@@ -1,0 +1,219 @@
+#!/bin/sh
+###############################################################################
+clear; CUR=$(pwd); . ../functions; cpuType          ###  Startup Processes  ###
+###############################################################################
+RELEASE=1.0                                              # The version of build
+###############################################################################
+EXT_NAME="mdadm"                                         # Extension Name
+EXT_SUFX="tar.gz"                                        # Archive Suffix
+EXT_DEPS="raid-dm-KERNEL"                                # Run-time Dependencies
+HOST="https://www.kernel.org/pub/linux/utils/raid/mdadm" # Website for VERSION
+###############################################################################
+
+########################
+## SUPPORT EXTENSIONS ##
+###############################################################################
+case $CPU in
+    x86_64)  EXTS="udev-lib-dev" ;;
+    i*86)    EXTS="udev-dev"; CPU="x86" ;;
+    arm*)    EXTS="udev-lib-dev" ;;
+    *)       echo "Unfamiliar CPU: $CPU"; exit 1 ;;
+esac
+EXTS="${EXTS} wget bash compiletc squashfs-tools util-linux"
+extload quiet wget
+echo
+
+#################
+## BUILD PATHS ##
+###############################################################################
+mkdir -p $CUR/dl $CUR/src $CUR/logs $CUR/pkgs
+rm $CUR/src -fR; rm $CUR/logs -fR; mkdir -p $CUR/src $CUR/logs
+
+#####################
+## CURRENT VERSION ##
+###############################################################################
+if [ ! -f $CUR/dl/versions.txt ]; then
+    echo -n "${CYAN}mdadm ${YELLOW}Gathering version data${NORMAL}"
+    mkdir -p $CUR/dl
+    cd $CUR/dl
+    wget -q --no-check-certificate $HOST -O - | grep ".tar.gz" | grep mdadm | grep -v sign | awk -F">" '{print $2}' | awk -F"<" '{print $1}' > versions.html
+    cat versions.html | awk -F"mdadm-" '{print $2}' | awk -F".tar" '{print $1}' | grep -v "-" > versions.txt
+    cat versions.txt | sort -r > versions.end
+    rm versions.txt versions.html -f
+    mv versions.end versions.txt
+    clear
+fi
+VERSION=$(head -n 1 $CUR/dl/versions.txt)
+
+#################
+## BUILD PATHS ##
+###############################################################################
+mkdir -p $CUR/pkgs/${VERSION}/${CPU} $CUR/src/${VERSION}/${CPU}
+
+###################
+##### CMDLINE #####
+###################
+
+#################
+## HOME SCREEN ##
+###############################################################################
+clear; showapp "MDADM Raid Tools v${VERSION}"
+#echo "${RED}######################${NORMAL}"; echo "${RED}## ${CYAN}MDADM Raid Tools ${RED}##"
+#echo "################################################################################${NORMAL}"
+extload $EXTS
+echo "${CYAN}Processor Threads:  ${GREEN}$(nproc)${NORMAL}"
+echo "${CYAN}Extension Title:    ${GREEN}${EXT_NAME}${NORMAL}"
+echo "${CYAN}Extension Version:  ${GREEN}${VERSION}${NORMAL}"
+echo "${CYAN}Architecture:       ${GREEN}${CPU}${NORMAL}"
+echo
+
+#####################
+## SOURCE DOWNLOAD ##
+###############################################################################
+if [ ! -f $CUR/dl/${EXT_NAME}-${VERSION}.${EXT_SUFX} ]; then
+    mkdir -p $CUR/dl
+    cd $CUR/dl
+    echo -n "${CYAN}Downloading source archive${NORMAL}"
+    wget -q --no-check-certificate $HOST/${EXT_NAME}-${VERSION}.${EXT_SUFX} >$CUR/logs/${VERSION}_dl.log 2>&1 || exit 1
+    echo
+fi
+if [ ! -d $CUR/src/${EXT_NAME}-${VERSION} ]; then
+    mkdir -p $CUR/src
+    cd $CUR/src
+    echo -n "${CYAN}Extracting source archive${NORMAL}"
+    tar -zxf $CUR/dl/${EXT_NAME}-${VERSION}.${EXT_SUFX} || exit 1
+    echo
+    mv ${EXT_NAME}-${VERSION} $CUR/src/${VERSION}/${CPU}/
+fi
+
+set >$CUR/logs/${VERSION}_env.log
+
+###############
+## CONFIGURE ##
+###############################################################################
+if [ ! -f $CUR/src/${VERSION}/${CPU}/${EXT_NAME}-${VERSION}/.configured ]; then
+    cd $CUR/src/${VERSION}/${CPU}/${EXT_NAME}-${VERSION}
+    sed -i 's/udev = udev_unref(udev)/udev_unref(udev)/g' udev.c
+    sed -i 's/SYSCONFDIR = \/etc/SYSCONFDIR = \/usr\/local\/etc/g' Makefile
+    sed -i 's/BINDIR  = \/sbin/BINDIR  = \/usr\/local\/sbin/g' Makefile
+    touch ./.configured
+fi
+
+################
+## MAKE/BUILD ##
+###############################################################################
+if [ ! -f $CUR/src/${VERSION}/${CPU}/${EXT_NAME}-${VERSION}/.compiled ]; then
+    echo -n "${YELLOW}Compiling ${GREEN}${EXT_NAME} ${YELLOW}with ${GREEN}$(nproc) ${YELLOW}threads${NORMAL} "
+    cd $CUR/src/${VERSION}/${CPU}/${EXT_NAME}-${VERSION}
+    make -j$(nproc) >$CUR/logs/${VERSION}_make.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done."
+fi
+
+###############
+## MAKE/TEST ##
+###############################################################################
+if [ ! -f $CUR/src/${VERSION}/${CPU}/${EXT_NAME}-${VERSION}/.tested ]; then
+    touch $CUR/src/${VERSION}/${CPU}/${EXT_NAME}-${VERSION}/.tested
+fi
+
+###############
+##  PACKAGE  ##
+###############################################################################
+echo -n "${YELLOW}Packaging ${GREEN}${EXT_NAME}${NORMAL} "
+rm $CUR/pkgs/${VERSION}/${CPU}/* -fR >/dev/null 2>&1
+
+### DOC
+cd $CUR/src/${VERSION}/${CPU}/${EXT_NAME}-${VERSION}
+make DESTDIR=/tmp/${EXT_NAME} install >$CUR/logs/${VERSION}_ins_doc.log 2>&1 &
+rotdash $!
+echo -n "."
+echo >>$CUR/logs/${VERSION}_ins_doc.log 2>&1 &
+rm /tmp/${EXT_NAME}/usr/local -fR
+rm /tmp/${EXT_NAME}/lib -fR
+cd /tmp/${EXT_NAME}
+find -type f > $CUR/pkgs/${VERSION}/${CPU}/${EXT_NAME}-doc.tcz.list
+nodot $CUR/pkgs/${VERSION}/${CPU}/${EXT_NAME}-doc.tcz.list
+cd /tmp
+mksquashfs ${EXT_NAME} $CUR/pkgs/${VERSION}/${CPU}/${EXT_NAME}-doc.tcz >>$CUR/logs/${VERSION}_ins_doc.log 2>&1 &
+rotdash $!
+echo -n "."
+
+### DEV
+
+### LOC
+
+### BIN
+cd $CUR/src/${VERSION}/${CPU}/${EXT_NAME}-${VERSION}
+make DESTDIR=/tmp/${EXT_NAME} install >$CUR/logs/${VERSION}_ins_bin.log 2>&1 &
+rotdash $!
+echo -n "."
+echo >>$CUR/logs/${VERSION}_ins_bin.log 2>&1 &
+rm /tmp/${EXT_NAME}/usr/share -fR
+cd /tmp/${EXT_NAME}
+find -type f > $CUR/pkgs/${VERSION}/${CPU}/${EXT_NAME}.tcz.list
+nodot $CUR/pkgs/${VERSION}/${CPU}/${EXT_NAME}.tcz.list
+
+stripper /tmp/${EXT_NAME}
+#find -type f >$CUR/logs/${VERSION}_str_lst.log 2>&1
+#while read -r line
+#do
+#    strip -s ${line} >> $CUR/logs/${VERSION}_str_bin.log 2>&1
+#done <$CUR/logs/${VERSION}_str_lst.log
+
+echo -n "."
+cd /tmp
+mksquashfs ${EXT_NAME} $CUR/pkgs/${VERSION}/${CPU}/${EXT_NAME}.tcz >>$CUR/logs/${VERSION}_ins_bin.log 2>&1 &
+rotdash $!
+echo " Done."
+
+
+
+#############
+## CLEANUP ##
+###############################################################################
+rm /tmp/${EXT_NAME} -fR
+
+
+###=> Create Info Listing - BIN
+cd $CUR/pkgs/${VERSION}/${CPU}
+SIZE=$(ls ${EXT_NAME}.tcz -la | awk '{print $5}'); SIZE=$(bytes $SIZE)
+echo "Title:          ${EXT_NAME}.tcz" > ${EXT_NAME}.tcz.info
+echo "Description:    Mdadm, or Multiple Disk and Device Management, is a Linux command line tool that manages and monitors software RAID devices" >> ${EXT_NAME}.tcz.info
+echo "Version:        ${VERSION}" >> ${EXT_NAME}.tcz.info
+echo "Author:         Linux Foundation" >> ${EXT_NAME}.tcz.info
+echo "Original-site:  https://raid.wiki.kernel.org" >> ${EXT_NAME}.tcz.info
+echo "Copying-policy: GPL2" >> ${EXT_NAME}.tcz.info
+echo "Size:           ${SIZE}" >> ${EXT_NAME}.tcz.info
+echo "Extension_by:   CentralWare Development Centers" >> ${EXT_NAME}.tcz.info
+echo "Tags:           mdadm raid softraid" >> ${EXT_NAME}.tcz.info
+echo "Build_deps:     ${EXTS}" >> ${EXT_NAME}.tcz.info
+echo "Comments:       Binaries" >> ${EXT_NAME}.tcz.info
+echo "Change-log:     Released for ${CPU}" >> ${EXT_NAME}.tcz.info
+echo "Current:        2025/01/01 v${VERSION}" >> ${EXT_NAME}.tcz.info
+echo "${EXT_DEPS}" > ${EXT_NAME}.tcz.dep
+
+###=> Create MD5 Signature
+md5sum ${EXT_NAME}.tcz > ${EXT_NAME}.tcz.md5.txt
+
+###=> Create Info Listing - DOC
+cd $CUR/pkgs/${VERSION}/${CPU}
+SIZE=$(ls ${EXT_NAME}-doc.tcz -la | awk '{print $5}'); SIZE=$(bytes $SIZE)
+echo "Title:          ${EXT_NAME}-doc.tcz" > ${EXT_NAME}-doc.tcz.info
+echo "Description:    Mdadm, or Multiple Disk and Device Management, is a Linux command line tool that manages and monitors software RAID devices" >> ${EXT_NAME}-doc.tcz.info
+echo "Version:        ${VERSION}" >> ${EXT_NAME}-doc.tcz.info
+echo "Author:         Linux Foundation" >> ${EXT_NAME}-doc.tcz.info
+echo "Original-site:  https://raid.wiki.kernel.org" >> ${EXT_NAME}-doc.tcz.info
+echo "Copying-policy: GPL2" >> ${EXT_NAME}-doc.tcz.info
+echo "Size:           ${SIZE}" >> ${EXT_NAME}-doc.tcz.info
+echo "Extension_by:   CentralWare Development Centers" >> ${EXT_NAME}-doc.tcz.info
+echo "Tags:           mdadm raid softraid" >> ${EXT_NAME}-doc.tcz.info
+echo "Build_deps:     ${EXTS}" >> ${EXT_NAME}-doc.tcz.info
+echo "Comments:       Documents" >> ${EXT_NAME}-doc.tcz.info
+echo "Change-log:     Released for ${CPU}" >> ${EXT_NAME}-doc.tcz.info
+echo "Current:        2025/01/01 v${VERSION}" >> ${EXT_NAME}-doc.tcz.info
+
+###=> Create MD5 Signature
+md5sum ${EXT_NAME}-doc.tcz > ${EXT_NAME}-doc.tcz.md5.txt
+
+#cp $CUR/build $CUR/pkgs/${VERSION}/${CPU}/${EXT_NAME}.tcz.bld

@@ -1,0 +1,39 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-plasma
+pkgname=breeze-grub
+pkgver=6.1.4
+pkgrel=0
+pkgdesc="Breeze theme for GRUB"
+arch="noarch !s390x !armhf" # armhf blocked by extra-cmake-modules
+url="https://kde.org/plasma-desktop/"
+license="GPL-3.0-or-later"
+depends="grub"
+makedepends="
+	extra-cmake-modules
+	font-unifont
+	grub-mkfont
+	"
+
+case "$pkgver" in
+	*.90*) _rel=unstable;;
+	*) _rel=stable;;
+esac
+_repo_url="https://invent.kde.org/plasma/breeze-grub.git"
+source="https://download.kde.org/stable/plasma/$pkgver/breeze-grub-$pkgver.tar.xz"
+# No test suite available
+options="!check"
+
+build() {
+	./mkfont.sh
+}
+
+package() {
+	install -d "$pkgdir"/usr/share/grub/themes
+	cp -r breeze "$pkgdir"/usr/share/grub/themes
+}
+sha512sums="
+0232885e5214cda7605787ef457011049f8f480046723a661a669c1e6b96a81601cbeab208cea8ec1d65bf3ecebbc89f99fc39eceb56766b6cffb049dcbe9496  breeze-grub-6.1.4.tar.xz
+"

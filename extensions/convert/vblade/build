@@ -1,0 +1,140 @@
+#!/bin/sh
+TITLE="
+        ######
+       ##    ## ####
+       ##        ##  ##     ##
+        ######   ##  ###   ### ########
+             ##  ##  #### #### ##     ## ##
+       ##    ##  ##  ## ### ## ##     ## ##       ########
+        ######   ##  ##     ## ########  ##       ##
+                #### ##     ## ##        ##       ##             #####
+                     ##     ## ##        ##       ######        ##   ##
+                   #           ##        ##       ##            # 0 0 #
+  ######          ###                    ######## ##            #  V   #
+    ##             #                              ########    ##       ##
+    ##         ###    ### ####   ###    ###  ##### #####     #          ##
+    ##        #  ##    ###    ##  ##     ##    ##   ##      #            ##
+    ##       #   ##    ##     ##  ##     ##      ###        #  #      #  ###
+    ##          ###    ##     ##  ##     ##      ###       @@##        # #@@
+    ##       # ###     ##     ##  ##     ##     ## ##    @@@@@@#       #@@@@@@
+    ##      ## ### #   ##     ##  ###   ###    ##   ##   @@@@@@@# CDC #@@@@@@@
+  ############  ###   ####   ####   #### ### ##### #####   @@@@@#######@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+clear; echo "${TITLE}"; echo; CUR=$(pwd)
+. /etc/init.d/tc-functions; . ../functions                             ##### TCL
+GetProcessorType
+SFX=$CPU; SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+SXX=$SFX
+
+
+
+
+  ##########################
+ #/ LINUX - AoE - VBlade /#
+################################################################################
+# ATA Over Ethernet, or AoE, is a network protocol developed by the Brantley   #
+# Coile Company, designed for simple, high-performance access of block storage #
+# devices over Ethernet networks.  It is used to build storage area networks   #
+# (SANs) with low-cost, standard technologies. It is especially useful in the  #
+# creation of PXE based installations and some virtual installations allowing  #
+# virtual hard drive storage to be served from other machines while being safe #
+# from prying eyes, as it cannot be accessed from the outside world.           #
+################################################################################
+# VBlade is the tool necessary to create shared storage blocks for other       #
+# devices/machines to utilize.                                                 #
+################################################################################
+EXT_NAME="vblade"
+EXT_VERS="25"
+
+echo
+echo "${YELLOW}EXTENSION: ${CYAN}${EXT_NAME}"
+echo "${YELLOW}VERSION  : ${CYAN}${EXT_VERS} ${GREEN}${SXX}"
+echo
+echo -n "${WHITE}Support Extensions: ${NORMAL}"
+
+EXTS="compiletc squashfs-tools"                                       ##### TCL
+for EXT in $EXTS
+do
+    echo -n "${EXT} "
+    su -c "tce-load -w $EXT >/dev/null" tc
+    su -c "tce-load -i $EXT >/dev/null" tc
+done
+echo
+
+
+### SOURCE CODE ###
+if [ ! -f $CUR/src/${EXT_NAME}-${EXT_VERS}.zip ]; then
+    echo "${MAGENTA}Downloading source code${NORMAL}"
+    mkdir -p $CUR/src; cd $CUR/src
+    wget -q https://github.com/OpenAoE/${EXT_NAME}/archive/refs/tags/${EXT_NAME}-${EXT_VERS}.zip
+    if [ ! -f $CUR/src/${EXT_NAME}-${EXT_VERS}.zip ]; then
+        echo "${RED}ERROR! ${YELLOW}Download Failed!${NORMAL}"; echo
+        wget https://github.com/OpenAoE/${EXT_NAME}/archive/refs/tags/${EXT_NAME}-${EXT_VERS}.zip
+        exit 1
+    fi
+fi
+
+### SOURCE DIRECTORY ###
+if [ ! -d $CUR/src/${EXT_NAME}_${EXT_VERS} ]; then
+    echo "${MAGENTA}Extracting source code${NORMAL}"
+    cd $CUR/src
+    unzip ${EXT_NAME}-${EXT_VERS}.zip >/dev/null 2>&1
+    mv ${EXT_NAME}-${EXT_NAME}-${EXT_VERS} ${EXT_NAME}_${EXT_VERS}
+
+    if [ ! -f $CUR/${EXT_NAME}_${EXT_VERS}.nix.src ]; then
+        echo "${MAGENTA}Creating Source Package${NORMAL}"
+        mkdir -p $CUR/src/pkg/usr/local/src/${EXT_NAME}
+        cp $CUR/src/${EXT_NAME}_${EXT_VERS}/* $CUR/src/pkg/usr/local/src/${EXT_NAME}/ -R
+        cd $CUR/src; mksquashfs pkg $CUR/${EXT_NAME}_${EXT_VERS}.nix.src > $CUR/src_squash.log 2>&1
+#        cd $CUR; rm $CUR/src/pkg -fR
+    fi
+fi
+
+cd $CUR/src/${EXT_NAME}_${EXT_VERS}
+time make -j$(nproc) > $CUR/app_compile.log 2>&1 || exit 1
+strip --strip-all $CUR/src/${EXT_NAME}_${EXT_VERS}/${EXT_NAME}
+
+mkdir -p /tmp/build/${EXT_NAME}/usr/local/bin
+mkdir -p /tmp/build/${EXT_NAME}/usr/local/sbin
+
+cp $CUR/src/${EXT_NAME}_${EXT_VERS}/vblade /tmp/build/${EXT_NAME}/usr/local/sbin/
+cp $CUR/src/${EXT_NAME}_${EXT_VERS}/vbladed /tmp/build/${EXT_NAME}/usr/local/sbin/
+cp $CUR/src/${EXT_NAME}_${EXT_VERS}/sparsefile /tmp/build/${EXT_NAME}/usr/local/bin/
+
+cd /tmp/build
+mksquashfs ${EXT_NAME} $CUR/${EXT_NAME}__${EXT_VERS}__${SXX}.nix > $CUR/app_squash.log 2>&1
+cd $CUR
+md5sum ${EXT_NAME}__${EXT_VERS}__${SXX}.nix > $CUR/${EXT_NAME}__${EXT_VERS}__${SXX}.md5
+SIZE=$(ls -la $CUR/${EXT_NAME}__${EXT_VERS}__${SXX}.nix | awk '{print $5}')
+[ $SIZE -gt 1024 ] && SZX="KB" && SIZE=$(expr $SIZE / 1024)
+[ $SIZE -gt 1024 ] && SZX="MB" && SIZE=$(expr $SIZE / 1024)
+[ $SIZE -gt 1024 ] && SZX="GB" && SIZE=$(expr $SIZE / 1024)
+
+FN=$CUR/${EXT_NAME}__${EXT_VERS}__${SXX}.nfo
+echo "Title:          ${EXT_NAME}" > $FN
+echo "Description:    $EXT_NAME ATA Over Ethernet Daemon" >> $FN
+echo "Version:        $EXT_VERS" >> $FN
+echo "Author:         Ed Cashin, Anderw Basterfield" >> $FN
+echo "Original-site:  http://github.com/OpenAoE" >> $FN
+echo "Copying-policy: Copyright (C) 2005 to Current" >> $FN
+echo "Size:           $SIZE $SZX" >> $FN
+echo "Extension_by:   CentralWare Development Centers" >> $FN
+echo "Tags:           ATA Over Ethernet AoE" >> $FN
+echo "Comments:       Compiled With SimpleNix $(version) kernel $(uname -r | awk -F- '{print $1}') ${SXX}" >> $FN
+echo "Current:        $(date '+%F%n') by CentralWare" >> $FN
+echo "Change-log:     ----" >> $FN
+echo "Depends:        " >> $FN
+
+cd /tmp/build/${EXT_NAME}
+find . -type f > $CUR/${EXT_NAME}__${EXT_VERS}__${SXX}.lst
+sed -i 's/.\/usr/\/usr/g' $CUR/${EXT_NAME}__${EXT_VERS}__${SXX}.lst

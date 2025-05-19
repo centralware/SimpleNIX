@@ -1,0 +1,48 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-plasma
+pkgname=breeze-gtk
+pkgver=6.1.4
+pkgrel=0
+pkgdesc="A GTK Theme Built to Match KDE's Breeze"
+# armhf blocked by extra-cmake-modules
+arch="noarch !armhf"
+url="https://kde.org/plasma-desktop/"
+license="LGPL-2.1-only"
+depends="gtk-engines"
+makedepends="
+	breeze
+	breeze-dev
+	extra-cmake-modules
+	py3-cairo
+	samurai
+	sassc
+	"
+
+case "$pkgver" in
+	*.90*) _rel=unstable;;
+	*) _rel=stable;;
+esac
+_repo_url="https://invent.kde.org/plasma/breeze-gtk.git"
+source="https://download.kde.org/stable/plasma/$pkgver/breeze-gtk-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+sha512sums="
+b1487358743a9a2385d91971ccf01d35fefe52f48e3e449c17b39975cf54f47b10a88273142334a45a76f3f4a5daa91c95f668b5abb201326cd762291f438fec  breeze-gtk-6.1.4.tar.xz
+"

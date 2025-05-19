@@ -1,0 +1,31 @@
+# Contributor: David Demelier <markand@malikania.fr>
+# Maintainer: David Demelier <markand@malikania.fr>
+pkgname=slick-greeter
+pkgver=2.0.5
+pkgrel=0
+pkgdesc="a slick-looking LightDM greeter"
+url="https://github.com/linuxmint/slick-greeter"
+# s390x: mainframe
+arch="all !s390x"
+license="GPL-3.0-only"
+makedepends="libcanberra-dev lightdm-dev meson vala xapp-dev"
+subpackages="$pkgname-doc $pkgname-lang"
+source="$pkgname-$pkgver.tar.gz::https://github.com/linuxmint/slick-greeter/archive/refs/tags/$pkgver.tar.gz"
+
+build() {
+	abuild-meson \
+		. output
+	meson compile -C output
+}
+
+check() {
+	meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+394f226e0bd78b317979dcfb76546af3dc4337104887d88d1688a88e7d3d18f23b915cf861f9254d404f075e12c3aeda87ac2a49a4d6255b9b50cb0d15ac6c7a  slick-greeter-2.0.5.tar.gz
+"

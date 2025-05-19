@@ -1,0 +1,134 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=curl
+pkgver=8.9.1
+pkgrel=1
+pkgdesc="URL retrival utility and library"
+url="https://curl.se/"
+arch="all"
+license="curl"
+depends="ca-certificates-bundle"
+depends_dev="brotli-dev c-ares-dev libidn2-dev libpsl-dev nghttp2-dev openssl-dev>3 zlib-dev zstd-dev"
+checkdepends="nghttp2 python3"
+makedepends_host="$depends_dev"
+makedepends_build="groff perl"
+
+source="https://curl.se/download/curl-$pkgver.tar.xz"
+patches="fix_sigpipe.patch"
+
+options="net" # Required for running tests
+
+pkgfile="curl-$pkgver.tar.xz"
+pkgdir="curl-$pkgver"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    sync; sync
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -xf ${pkgfile}
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_patches()
+{
+    cd $CUR/src/${pkgdir}
+    for PATCH in $patches
+    do
+        echo "Patching ${PATCH}"
+        patch -Np1 -i $CUR/_patches/${PATCH}
+    done
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    src_patches
+
+    cd $CUR/src/${pkgdir}
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring...${NORMAL}"
+        CPU=$(GetProcessorType)
+
+# FIX!            --enable-ares \
+
+        ./configure \
+            --prefix=/usr/local \
+            --enable-ipv6 \
+            --enable-unix-sockets \
+            --enable-static \
+            --with-libidn2 \
+            --with-nghttp2 \
+            --with-openssl \
+            --with-ca-bundle=/etc/ssl/cert.pem \
+            --with-zsh-functions-dir \
+            --with-fish-functions-dir \
+            --disable-ldap \
+            --with-pic \
+            --enable-websockets \
+            --without-libssh2 > \
+            $CUR/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+
+# IPV6 and HTTP/3 need to be looked into
+#    echo "${CYAN}Compiling tests...${NORMAL}"
+#    make -j$(nproc) -C tests > $CUR/_compiletest.log 2>&1 || exit 1
+
+#    echo "${CYAN}Running tests. This will take a while!.${NORMAL}"
+#    make -j$(nproc) -C tests nonflaky-test > $CUR/_testing.log 2>&1 || exit 1
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoad compiling wget openssl-dev perl5 pkg-config
+
+src_build
+
+
+
+
+

@@ -1,0 +1,134 @@
+#!/bin/sh
+clear; CUR=$(pwd); OLD=$CUR; . /etc/init.d/tc-functions; . ../functions;       ##### TCL
+TITLE="
+${CYAN}        ######
+${CYAN}       ##    ## ####
+${CYAN}       ##        ##  ##     ##
+${CYAN}        ######   ##  ###   ### ########
+${CYAN}             ##  ##  #### #### ##     ## ##
+${CYAN}       ##    ##  ##  ## ### ## ##     ## ##       ########
+${CYAN}        ######   ##  ##     ## ########  ##       ##
+${CYAN}                #### ##     ## ##        ##       ##             ${WHITE}#####
+${CYAN}                     ##     ## ##        ##       ######        ${WHITE}##   ##
+${CYAN}                   #           ##        ##       ##            ${WHITE}# ${BLUE}0 0 ${WHITE}#
+${CYAN}  ######          ###                    ######## ##           ${WHITE}#   ${YELLOW}V   ${WHITE}#
+${CYAN}    ##             #                              ########    ${WHITE}##       ##
+${CYAN}    ##         ###    ### ####   ###    ###  ##### #####     ${WHITE}#           #
+${CYAN}    ##        #  ##    ###    ##  ##     ##    ##   ##      ${WHITE}#             #
+${CYAN}    ##       #   ##    ##     ##  ##     ##      ###        ${WHITE}#  #       #  #
+${CYAN}    ##          ###    ##     ##  ##     ##      ###       ${YELLOW}@@${WHITE}##         ##${YELLOW}@@
+${CYAN}    ##       # ###     ##     ##  ##     ##     ## ##    ${YELLOW}@@@@@@${WHITE}#       #${YELLOW}@@@@@@
+${CYAN}    ##      ## ### #   ##     ##  ###   ###    ##   ##   ${YELLOW}@@@@@@@${WHITE}# ${RED}CDC ${WHITE}#${YELLOW}@@@@@@@
+${CYAN}  ############  ###   ####   ####   #### ### ##### #####   ${YELLOW}@@@@@${WHITE} ##### ${YELLOW}@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+echo "${TITLE}${NORMAL}"; echo; SFX=$(GetProcessorType)
+SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtClean
+ExtLoad wget; echo
+
+cd $CUR; mkdir -p $CUR/bin $CUR/src
+[ ! -f $CUR/versions.lst ] && touch $CUR/versions.lst
+
+
+APP="gmp"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###############
+
+cd $CUR; echo "${CYAN}Package ${GREEN}${APP}${NORMAL}"
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtLoad compiletc texinfo
+
+VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+if [ "${VERSION}" == "" ]; then
+    echo "  ${YELLOW}Obtaining Current Version${NORMAL}"; mkdir -p $CUR/tmp; sudo rm $CUR/tmp -fR; mkdir -p $CUR/tmp; cd $CUR/tmp
+    wget -q https://ftp.gnu.org/gnu/${APP} -O - | grep ${APP} | grep href | grep ".tar.xz" | awk -F "<a " '{print $2}' > index
+    cat index | awk -F "</a" '{print $1}' | awk -F "\"" '{print $2}' > index2
+    cat index2 | grep -v doc | grep -v alpha | grep -v beta | grep -v rc | grep -v ".sig" > index3
+    cat index3 | awk -F "${APP}-" '{print $2}' | awk -F ".tar" '{print $1}' | grep -v "a" | grep -v "b" | grep -v "c" > index4
+    sort index4 > index5
+    J=0; N=0; V=0
+    for item in $(cat index5)
+    do
+        MAJ=$(echo $item | awk -F. '{print $1}'); MIN=$(echo $item | awk -F. '{print $2}'); REV=$(echo $item | awk -F. '{print $3}'); [ "${REV}" == "" ] && REV=0
+        if [ $MAJ -gt $J ]; then J=$MAJ; N=$MIN; V=$REV; fi; if [ $MIN -gt $N ]; then N=$MIN; V=$REV; fi; if [ $REV -gt $V ]; then V=$REV; fi
+    done
+    VERSION="${J}.${N}.${V}"
+    #[ "${V}" == "0" ] && VERSION=$(echo $VERSION | awk -F. '{print $1 "." $2}')
+    echo ":${APP}:${VERSION}" >> $CUR/versions.lst
+    cd $CUR; sudo rm tmp -fR
+fi
+
+sudo ldconfig >/dev/null 2>&1
+
+VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+
+if [ ! -d $CUR/src/${APP}-${VERSION} ]; then
+    cd $CUR/src
+    echo "  ${YELLOW}Obtaining Source Code ${GREEN}${VERSION}${NORMAL}"
+    wget -q https://ftp.gnu.org/gnu/${APP}/${APP}-${VERSION}.tar.xz || exit 1
+    tar -xf ${APP}-${VERSION}.tar.xz || exit 1
+    rm ${APP}-${VERSION}.tar.xz -f
+fi
+
+cd $CUR/src/${APP}-${VERSION}
+
+sed -i 's/extras//' Makefile.in
+[ ! -d build ] && mkdir build
+cd build
+if [ ! -f ./.configured ]; then
+    echo "  ${YELLOW}Configuring Source Code ${NORMAL}"
+    ../configure --prefix=/usr/local --enable-cxx --disable-static --docdir=/usr/local/share/doc/gmp >./.configured.log 2>&1 || exit 1
+    find . -name Makefile -type f -exec sed -i 's/-g -O2//g' {} \;
+    touch ./.configured
+fi
+
+if [ ! -f ./.compiled ]; then
+    echo "  ${YELLOW}Compiling Source Code ${NORMAL}"
+    [ -f ./.compiled.log ] && make clean >/dev/null 2>&1
+    make -j$(nproc) >./.compiled.log 2>&1 || exit 1
+    touch ./.compiled
+fi
+
+if [ ! -d $CUR/bin/${APP}-${VERSION} ]; then
+    echo "  ${YELLOW}Installing Source Code ${NORMAL}"
+    make DESTDIR=$CUR/bin/${APP}-${VERSION} install >./.installed.log 2>&1 || exit 1
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+

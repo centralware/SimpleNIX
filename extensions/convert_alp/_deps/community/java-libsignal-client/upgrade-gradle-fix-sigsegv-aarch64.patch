@@ -1,0 +1,13 @@
+diff -ur old/java/gradle/wrapper/gradle-wrapper.properties new/java/gradle/wrapper/gradle-wrapper.properties
+--- old/java/gradle/wrapper/gradle-wrapper.properties	2024-04-20 00:15:20.000000000 +0200
++++ new/java/gradle/wrapper/gradle-wrapper.properties	2024-04-23 05:32:39.009711553 +0200
+@@ -1,7 +1,7 @@
+ # Note: Check https://gradle.org/release-checksums/ before updating wrapper or distribution
+ distributionBase=GRADLE_USER_HOME
+ distributionPath=wrapper/dists
+-distributionSha256Sum=3e1af3ae886920c3ac87f7a91f816c0c7c436f276a6eefdb3da152100fef72ae
+-distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
++distributionSha256Sum=a4b4158601f8636cdeeab09bd76afb640030bb5b144aafe261a5e8af027dc612
++distributionUrl=https\://services.gradle.org/distributions/gradle-8.8-bin.zip
+ zipStoreBase=GRADLE_USER_HOME
+ zipStorePath=wrapper/dists

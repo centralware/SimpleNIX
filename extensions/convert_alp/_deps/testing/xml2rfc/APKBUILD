@@ -1,0 +1,32 @@
+# Maintainer: Patrycja Rosa <alpine@ptrcnull.me>
+pkgname=xml2rfc
+pkgver=3.22.0
+pkgrel=0
+pkgdesc="tool for converting XML documents into internet drafts and RFCs"
+options="!check" # Requires unpackaged i18naddress
+url="https://github.com/ietf-tools/xml2rfc"
+arch="noarch"
+license="BSD-2-Clause"
+depends="python3 py3-six py3-requests py3-lxml"
+makedepends="py3-gpep517 py3-setuptools py3-wheel"
+subpackages="$pkgname-pyc"
+source="https://files.pythonhosted.org/packages/source/x/xml2rfc/xml2rfc-$pkgver.tar.gz"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 test.py
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+b02548f31527619ffc8b84099098f8f022fca51ee82fa0c2f3bc262e3358145063ab63a1034b71dacba2eb03758b1ec5e36419b01b681abdbbaef48c7fa72d5b  xml2rfc-3.22.0.tar.gz
+"

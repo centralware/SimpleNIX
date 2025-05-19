@@ -1,0 +1,11 @@
+build() {
+~!~!~cd CPP/7zip/Bundles/Alone2
+~!~!~mkdir -p b/g
+~!~!~# TODO: enable asm (requires jwasm or uasm)
+~!~!~# DISABLE_RAR: RAR codec is non-free
+~!~!~# -D_GNU_SOURCE: broken sched.h defines
+~!~!~make -f ../../cmpl_gcc.mak \
+~!~!~~!~!~CC="${CC:-cc} $CFLAGS $LDFLAGS -D_GNU_SOURCE" \
+~!~!~~!~!~CXX="${CXX:-c++} $CXXFLAGS $LDFLAGS -D_GNU_SOURCE" \
+~!~!~~!~!~DISABLE_RAR=1
+}

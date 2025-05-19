@@ -1,0 +1,44 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=akonadi-notes
+pkgver=24.05.2
+pkgrel=0
+pkgdesc="Libraries and daemons to implement management of notes"
+arch="all"
+url="https://community.kde.org/KDE_PIM"
+license="LGPL-2.0-or-later"
+depends_dev="
+	ki18n-dev
+	kmime-dev
+	qt6-qtbase-dev
+	"
+makedepends="$depends_dev
+	extra-cmake-modules
+	samurai
+	"
+subpackages="$pkgname-dev $pkgname-lang"
+_repo_url="https://invent.kde.org/pim/akonadi-notes.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/akonadi-notes-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+d5a08d25a2f32196e53e3bd0a75e8919020b8d52a469438d62b27e0ff782e04d692684395a0664a5c87bba288d3c243f38498fc5494ebf53041baf095a573192  akonadi-notes-24.05.2.tar.xz
+"

@@ -1,0 +1,114 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=dropbear
+pkgver="2020.80"
+pkgrel=1
+pkgdesc="SSH Client"
+url="https://matt.ucc.asn.au/dropbear/dropbear.html"
+arch="all"
+license="MIT"
+source="https://matt.ucc.asn.au/dropbear/releases/dropbear-${pkgver}.tar.bz2"
+pkgfile="dropbear-${pkgver}.tar.bz2"
+pkgdir="dropbear-${pkgver}"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+update_variables()
+{
+    source="https://matt.ucc.asn.au/dropbear/releases/dropbear-${pkgver}.tar.bz2"
+    pkgfile="dropbear-${pkgver}.tar.bz2"
+    pkgdir="dropbear-${pkgver}"
+}
+
+get_version()
+{
+    mkdir -p $CUR/src
+    cd $CUR/src
+    [ ! -f version.html ] && wget -q $url -O version.html
+    V=$(cat version.html | grep "Latest is" | awk -F "<" '{print $1}')
+    V=$(echo $V | awk '{print $3}')
+    pkgver=$V
+    update_variables
+}
+
+get_source()
+{
+    echo "Getting current version information..."
+    [ "${pkgver}" == "" ] && get_version
+
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -jxf ${pkgfile}
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_depends()
+{
+    echo "Loading compilation dependencies"
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring...${NORMAL}"
+        CPU=$(GetProcessorType)
+        ./configure \
+            --prefix=/usr/local \
+            --mandir=/usr/local/share/man \
+            --infodir=/usr/local/share/info > \
+            $CUR/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+
+#    echo "${CYAN}Testing...${NORMAL}"
+#    make -j$(nproc) check > $CUR/_testing.log 2>&1 || exit 1
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget bash python3.6
+
+src_build
+
+

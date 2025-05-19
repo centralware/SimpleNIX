@@ -1,0 +1,205 @@
+#!/bin/sh
+
+APPNAME="firewalld"
+SITEVER="https://github.com/firewalld/firewalld/tags"
+SITEGIT="https://github.com/firewalld/firewalld.git"
+
+EXT_BLD="compiletc python3.9-dev intltool iptables-dev ebtables ipset-dev autoconf wget git squashfs-tools"
+EXT_RUN="dbus-python3.9 py3.9gobject gtk3-gir"
+
+################################################################################
+################################################################################
+. ../functions; CUR=$(pwd); clear
+showapp $APPNAME; extload $EXT_BLD; cpuType
+
+
+##### DIRECTORY SUPPORT #####
+mkdir -p dl pkg src log
+
+##### GET RECENT VERSION #####
+if [ ! -f $CUR/dl/version ]; then
+    mkdir -p $CUR/dl
+    echo "${CYAN}Obtaining versioning information${NORMAL}"
+    wget -q --no-check-certificate $SITEVER -O - | grep "/${APPNAME}/${APPNAME}/releases/tag/" | \
+        awk -F "/${APPNAME}/${APPNAME}/releases/tag/" '{print $2}' | \
+        awk -F "\"" '{print $1}' > versions || exit 1
+    sed -i 's/v//g' versions
+    sort -n versions | tail -n 1 > $CUR/dl/version && rm versions -f
+fi
+VERSION=$(cat $CUR/dl/version)
+
+##### GET SOURCE TARBALL #####
+if [ ! -f $CUR/dl/${APPNAME}-${VERSION}.tar.bz2 ]; then
+    mkdir -p $CUR/dl $CUR/log; cd $CUR/dl
+    echo "${CYAN}Downloading source tarball ${GREEN}v${VERSION}${NORMAL}"
+    wget -q --no-check-certificate https://github.com/${APPNAME}/${APPNAME}/releases/download/v${VERSION}/${APPNAME}-${VERSION}.tar.bz2 || exit 1
+fi
+
+##### EXTRACT SOURCES #####
+if [ ! -d $CUR/src/${VERSION} ]; then
+    echo "${CYAN}Extracting source tarball ${GREEN}v${VERSION}${NORMAL}"
+    mkdir -p $CUR/src; cd $CUR/src
+    tar -jxf $CUR/dl/${APPNAME}-${VERSION}.tar.bz2
+    mv ${APPNAME}-${VERSION} ${VERSION}
+fi
+
+##### COMPILE #####
+cd $CUR/src/${VERSION} || exit 1
+if [ ! -f ./.configured ]; then
+    echo "${CYAN}Configuring source package${NORMAL}"
+    ./configure --prefix=/usr/local --localstatedir=/var --disable-docs >$CUR/log/_config.log 2>&1 || exit 1
+fi
+
+echo "${CYAN}Compiling source package${NORMAL}"
+time make -j$(nproc) >$CUR/log/_compile.log 2>&1 || exit 1
+
+##### INSTALL #####
+mkdir -p /tmp/build/${APPNAME} /tmp/build/${APPNAME}-loc
+sudo rm /tmp/build/${APPNAME} -fR
+sudo rm /tmp/build/${APPNAME}-loc -fR
+echo "${CYAN}Installing source package${NORMAL}"
+time make DESTDIR=/tmp/build/${APPNAME} install >$CUR/log/_install.log 2>&1 || exit 1
+
+##### STRIP ALL BINARIES #####
+stripper /tmp/build/${APPNAME}
+
+##### TWEAK CONFIGS #####
+#sed -i 's/datadir \= None/datadir \= \"/usr/local/share/firewalld\"/g' /tmp/build/${APPNAME}/usr/local/bin/firewall-config
+OLD="datadir = None"
+NEW="datadir = /usr/local/share/firewalld"
+sed -i 's/${OLD}/${NEW}/g' /tmp/build/${APPNAME}/usr/local/bin/firewall-config
+
+cd /tmp/build
+echo -n "${BLUE}DEP ${CYAN}Creating complete package${NORMAL} "
+rm $CUR/${APPNAME}-all.tcz -f >/dev/null 2>&1
+mksquashfs ${APPNAME} $CUR/pkg/${APPNAME}-all.tcz >$CUR/log/_pkg_all.log 2>&1 &
+rotdash $! && echo "Done. "
+cd /tmp/build/${APPNAME}; find . -type f > $CUR/pkg/${APPNAME}-all.tcz.list
+
+##### PACKAGE - DEP #####
+mkdir -p $CUR/pkg
+echo "${BLUE}DEP ${CYAN}Creating dependency listing${NORMAL}"
+touch $CUR/${APPNAME}-${VERSION}-${CPU_TYPE}.tcz.dep
+rm $CUR/${APPNAME}-${VERSION}-${CPU_TYPE}.tcz.dep -f
+for DEP in $EXT_RUN; do echo $DEP >> $CUR/pkg/${APPNAME}.tcz.dep; done
+cp $CUR/pkg/${APPNAME}.tcz.dep $CUR/pkg/${APPNAME}-all.tcz.dep
+
+##### PACKAGE - DOC #####
+echo "${BLUE}DOC ${MAGENTA}Documentation is disabled${NORMAL}"
+
+##### PACKAGE - DEV #####
+echo "${BLUE}DEV ${MAGENTA}There are no inclusions${NORMAL}"
+
+##### PACKAGE - LOC #####
+echo -n "${BLUE}LOC ${CYAN}Creating locale Package${NORMAL} "
+mkdir -p /tmp/build/firewalld-loc/usr/local/share/locale
+mv /tmp/build/firewalld/usr/local/share/locale/* /tmp/build/firewalld-loc/usr/local/share/locale/ -f
+mv /tmp/build/firewalld-loc/usr/local/share/locale/en_US /tmp/build/firewalld/usr/local/share/locale/ -f
+cd /tmp/build
+rm $CUR/pkg/${APPNAME}-loc.tcz -f >/dev/null 2>&1
+mksquashfs ${APPNAME}-loc $CUR/pkg/${APPNAME}-loc.tcz >$CUR/log/_pkg_loc.log 2>&1 &
+rotdash $! && echo "Done. "
+cd /tmp/build/${APPNAME}-loc; find . -type f > $CUR/pkg/${APPNAME}-loc.tcz.list
+
+##### PACKAGE - BIN #####
+echo -n "${BLUE}BIN ${CYAN}Creating binary package${NORMAL} "
+cd /tmp/build
+rm $CUR/pkg/${APPNAME}.tcz -f >/dev/null 2>&1
+mksquashfs ${APPNAME} $CUR/pkg/${APPNAME}.tcz >$CUR/log/_pkg_bin.log 2>&1 &
+rotdash $! && echo "Done. "
+cd /tmp/build/${APPNAME}; find . -type f > $CUR/pkg/${APPNAME}.tcz.list
+
+##### INFO #####
+#cat > $CUR/pkg/${APPNAME}.tcz.info << "EOF"
+cd $CUR/pkg
+
+NFO="${APPNAME}.tcz.info"
+SIZE=$(ls -la ${APPNAME}.tcz | awk '{print $5}'); SIZE=$(bytes $SIZE)
+echo "Title:          ${APPNAME}.tcz" > $NFO
+echo "Description:    dynamically managed firewall" >> $NFO
+echo "Version:        ${VERSION}" >> $NFO
+echo "Author:         see list of sites below" >> $NFO
+echo "Original-site:  see list of sites below" >> $NFO
+echo "Copying-policy: see list of sites below" >> $NFO
+echo "Size:           ${SIZE}" >> $NFO
+echo "Extension_by:   CentralWare" >> $NFO
+echo "Tags:           firewall python python3.9" >> $NFO
+echo "Comments:       dynamically managed firewall with support for network or firewall" >> $NFO
+echo "                zones to define the trust level of network connections or interfaces" >> $NFO
+echo "                ----------" >> $NFO
+echo "                requires dbus daemon to be running" >> $NFO
+echo "                \$ sudo firewalld" >> $NFO
+echo "                ----------" >> $NFO
+echo "                This extension contains:" >> $NFO
+echo "                firewalld-2.3.0 - GPLv2 - https://github.com/firewalld/firewalld/releases/download/v2.3.0/firewalld-2.3.0.tar.bz2" >> $NFO
+echo "                ----------" >> $NFO
+echo "Change-log:     2020/04/19 first version" >> $NFO
+echo "Current:        2025/01/23 updated 0.8.2 -> 2.3.0" >> $NFO
+
+NFO="${APPNAME}-all.tcz.info"
+SIZE=$(ls -la ${APPNAME}-all.tcz | awk '{print $5}'); SIZE=$(bytes $SIZE)
+echo "Title:          ${APPNAME}-all.tcz" > $NFO
+echo "Description:    dynamically managed firewall" >> $NFO
+echo "Version:        ${VERSION}" >> $NFO
+echo "Author:         see list of sites below" >> $NFO
+echo "Original-site:  see list of sites below" >> $NFO
+echo "Copying-policy: see list of sites below" >> $NFO
+echo "Size:           ${SIZE}" >> $NFO
+echo "Extension_by:   CentralWare" >> $NFO
+echo "Tags:           firewall python python3.9" >> $NFO
+echo "Comments:       dynamically managed firewall with support for network or firewall" >> $NFO
+echo "                zones to define the trust level of network connections or interfaces" >> $NFO
+echo "                ----------" >> $NFO
+echo "                requires dbus daemon to be running" >> $NFO
+echo "                \$ sudo firewalld" >> $NFO
+echo "                ----------" >> $NFO
+echo "                This extension contains:" >> $NFO
+echo "                firewalld-2.3.0 - GPLv2 - https://github.com/firewalld/firewalld/releases/download/v2.3.0/firewalld-2.3.0.tar.bz2" >> $NFO
+echo "                ----------" >> $NFO
+echo "Change-log:     2020/04/19 first version" >> $NFO
+echo "Current:        2025/01/23 updated 0.8.2 -> 2.3.0" >> $NFO
+
+NFO="${APPNAME}-loc.tcz.info"
+SIZE=$(ls -la ${APPNAME}-loc.tcz | awk '{print $5}'); SIZE=$(bytes $SIZE)
+echo "Title:          ${APPNAME}-loc.tcz" > $NFO
+echo "Description:    dynamically managed firewall" >> $NFO
+echo "Version:        ${VERSION}" >> $NFO
+echo "Author:         see list of sites below" >> $NFO
+echo "Original-site:  see list of sites below" >> $NFO
+echo "Copying-policy: see list of sites below" >> $NFO
+echo "Size:           ${SIZE}" >> $NFO
+echo "Extension_by:   CentralWare" >> $NFO
+echo "Tags:           firewall python python3.9" >> $NFO
+echo "Comments:       dynamically managed firewall with support for network or firewall" >> $NFO
+echo "                zones to define the trust level of network connections or interfaces" >> $NFO
+echo "                ----------" >> $NFO
+echo "                requires dbus daemon to be running" >> $NFO
+echo "                \$ sudo firewalld" >> $NFO
+echo "                ----------" >> $NFO
+echo "                This extension contains:" >> $NFO
+echo "                firewalld-2.3.0 - GPLv2 - https://github.com/firewalld/firewalld/releases/download/v2.3.0/firewalld-2.3.0.tar.bz2" >> $NFO
+echo "                ----------" >> $NFO
+echo "Change-log:     2020/04/19 first version" >> $NFO
+echo "Current:        2025/01/23 updated 0.8.2 -> 2.3.0" >> $NFO
+
+##### MD5
+cd $CUR/pkg
+md5sum ${APPNAME}.tcz > ${APPNAME}.tcz.md5.txt
+md5sum ${APPNAME}-loc.tcz > ${APPNAME}-loc.tcz.md5.txt
+md5sum ${APPNAME}-all.tcz > ${APPNAME}-all.tcz.md5.txt
+
+##### CLEANUP #####
+cd $CUR/pkg/
+for FILE in *.tcz.list
+do
+    nodot $FILE
+done
+
+rm /tmp/build/${APPNAME} -fR
+rm /tmp/build/${APPNAME}-loc -fR
+
+echo "${WHITE}[ $(ticktock) ]${NORMAL}"
+
+
+
+

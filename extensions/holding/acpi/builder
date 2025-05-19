@@ -1,0 +1,120 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=acpi
+pkgver=1.7
+pkgrel=1
+pkgfile="[pkgname]-[pkgver].tar.gz"
+pkgdir="[pkgname]-[pkgver]"
+pkgdesc="ACPI client for battery, power, and thermal readings"
+url="https://sourceforge.net/projects/acpiclient/files/acpiclient/"
+arch="all"
+license="GPL2"
+source="https://downloads.sourceforge.net/acpiclient/[pkgfile]"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+##>> MOVE THIS TO FUNCTIONS
+extract()
+{
+    pkgfile=${pkgfile//\[pkgname\]/$pkgname}
+    pkgfile=${pkgfile//\[pkgver\]/$pkgver}
+    cd $CUR/src
+    case $pkgfile in
+        *.tar.gz)  tar -zxf $pkgfile; EXT=".tar.gz" ;;
+        *.tar.xz)  tar -xf $pkgfile; EXT=".tar.xz" ;;
+        *.tar.bz)  tar -jxf $pkgfile; EXT=".tar.bz" ;;
+        *.tar.bz2) tar -jxf $pkgfile; EXT=".tar.bz2" ;;
+        *.bzip)    bunzip $pkgfile; EXT=".bzip" ;;
+        *.zip)     unzip $pkgfile; EXT=".zip" ;;
+        *)         echo "No decompressor configured for $EXT"; exit 1
+    esac
+}
+
+get_version()
+{
+    echo "Scrape CURRENT VERSION from website"
+}
+
+get_source()
+{
+    pkgfile=${pkgfile//\[pkgname\]/$pkgname}
+    pkgfile=${pkgfile//\[pkgver\]/$pkgver}
+    pkgdir=${pkgdir//\[pkgname\]/$pkgname}
+    pkgdir=${pkgdir//\[pkgver\]/$pkgver}
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        source=${source//\[pkgfile\]/$pkgfile}
+        wget -q --no-check-certificate $source
+    fi
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        extract
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_depends()
+{
+    echo "Loading compilation dependencies"
+}
+
+src_build()
+{
+    pkgfile=${pkgfile//\[pkgname\]/$pkgname}
+    pkgfile=${pkgfile//\[pkgver\]/$pkgver}
+    pkgdir=${pkgdir//\[pkgname\]/$pkgname}
+    pkgdir=${pkgdir//\[pkgver\]/$pkgver}
+
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring...${NORMAL}"
+        CPU=$(GetProcessorType)
+        ./configure \
+            --prefix=/usr/local \
+            --sysconfdir=/usr/local/etc \
+            --mandir=/usr/local/share/man \
+            --localstatedir=/var > \
+            $CUR/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make DESTDIR=/tmp/builder/${pkgname} install > $CUR/_install.log 2>&1 || exit 1
+    mkdir -p $CUR/ext; rm $CUR/ext -fR; mkdir $CUR/ext
+    mv /tmp/builder/${pkgname} $CUR/ext/
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget
+
+src_build

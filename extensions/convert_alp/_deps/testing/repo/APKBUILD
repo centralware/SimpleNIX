@@ -1,0 +1,30 @@
+# Contributor: Antoine Fontaine <antoine.fontaine@epfl.ch>
+# Maintainer: Patrycja Rosa <alpine@ptrcnull.me>
+pkgname=repo
+pkgver=2.46
+pkgrel=0
+pkgdesc="repository management tool built on top of git"
+url="https://gerrit.googlesource.com/git-repo"
+arch="noarch"
+license="Apache-2.0"
+options="!check" # no tests upstream
+depends="python3 git"
+makedepends="py3-setuptools"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/GerritCodeReview/git-repo/archive/refs/tags/v$pkgver.tar.gz"
+builddir="$srcdir/git-repo-$pkgver"
+
+prepare() {
+	default_prepare
+
+	sed -i 's|^#!/usr/bin/env python|#!/usr/bin/python3|' repo
+}
+
+package() {
+	install -Dm755 repo -t "$pkgdir"/usr/bin
+	install -Dm644 man/* -t "$pkgdir"/usr/share/man/man1
+}
+
+sha512sums="
+2654cbc116bc10dc6e9e01bde6f76b90b1519cd32226ad6a51053883436e0c901a7709d066be1a606a0ca751e98cfe7dac8c736cfef4c971ef75c6f2a20f57f8  repo-2.46.tar.gz
+"

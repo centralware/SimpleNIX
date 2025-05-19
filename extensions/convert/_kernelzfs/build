@@ -1,0 +1,357 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions
+
+#############################
+## DEFAULT KERNEL SETTINGS ##
+#############################
+kernel_name="linux"         #
+kernel_version="6.12.12"    #
+kernel_suffix="simpleNIX"   #
+kernel_hostname="simpleNIX" #
+#############################
+
+#############################
+##  DEFEAULT ZFS SETTINGS  ##
+#############################
+zfs_name="zfs"              #
+zfs_version="2.3.0"        #
+zfs_mod="yes"               #
+#############################
+
+
+#############################
+## COMPILATION  EXTENSIONS ##
+################################################################################
+CompileExt="wget compiletc bc perl5 ncursesw-dev bash mpc-dev udev-lib-dev \
+    texinfo coreutils glibc_apps gettext python3.6 elfutils-dev zsync \
+    squashfs-tools git automake autoconf libtirpc-dev libtool-dev pkg-config
+    openssl-dev openssl"
+################################################################################
+
+cpuType
+KERNEL=$(uname -r | awk -F- '{print $1}')
+RAM=$(bytes $(free | head -n 2 | tail -n 1 | awk '{print $4}'))
+
+################################################################################
+# ####      We're going to ASSUME the recent version numbers are what's   #### #
+##  ####    desired, but allow the user to add version=#.#.# for the    ####  ##
+##    ####  kernel or zfs=#.#.# for the Z File System module.         ####    ##
+##      ################################################################      ##
+##                                                                            ##
+## build version=##### zfs=##### prefix="Different_Prefix" hostname="NewBox"  ##
+##                                                                            #######
+## Default Version: Latest Stable       Default ZFS Version: Latest Stable    ##### #
+## Default Prefix : SimpleNIX           Default Hostname   : simpleNIX        ##   ##
+##                                                                            ##   ##
+################################################################################   ##
+   ## Due to licensing conflicts with ZFS and LINUX, we cannot legally include     ##
+   ## ZFS as a compile binary with the operating system, but if the USER decides   ##
+   ## to agree with the CDDL they can follow the instructions and "agree" manually ##
+   ## to potentially offer a common medium between the two universes.              ##
+   ##################################################################################
+
+
+
+
+
+
+
+
+
+    ###################################################################
+  ##### Our CMDLINE has to allow us to DISABLE the building of ZFS  #####
+#####   ESPECIALLY if we want to compile kernels ABOVE MAXIMUM of     #####
+  ##### what ZFS says it will support.                              #####
+    ####################################################################
+
+NOZFS=0
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                kernel*)   kernel_version=${i#*=} ;;
+                zfs*)      zfs=${i#*=} ;;
+                suffix*)   kernel_suffix=${i#*=} ;;
+                hostname*) kernel_hostname=${i#*=} ;;
+            esac
+            ;;
+        *)
+            case $i in
+                nozfs)     NOZFS=1; rm $CUR/out/ver_kernel -f >/dev/null 2>&1 ;;
+                clean)
+                    sudo rm $CUR/out -fR
+                    sudo rm $CUR/dl -fR
+                    sudo rm $CUR/src -fR
+                    sudo rm $CUR/_files -fR
+                    sudo rm $CUR/_patches -fR
+                    echo "${YELLOW}Build workspace has been cleaned.${NORMAL}"
+                    exit 0
+                    ;;
+            esac
+            ;;
+    esac
+done
+
+
+extload quiet wget
+[ ! -d $CUR/out ] && mkdir -p $CUR/out
+
+cd $CUR/out
+if [ ! "${NOZFS}" == "1" ]; then
+    if [ ! -f ver_zfs ]; then
+        echo -n "${CYAN}Gathering ZFS Version Listing${NORMAL}  "
+        wget -q https://github.com/openzfs/zfs/releases -O - | grep "/openzfs/zfs/releases/tag" | \
+            awk -F ">" '{print $3}' | awk -F "<" '{print $1}' | awk -F "zfs-" '{print $2}' | \
+            head -n 1 > ver_zfs || exit 1
+        echo
+    fi
+
+    echo "ZFS Version    : $zfs_version"
+    if [ ! -d $CUR/src/zfs ]; then
+        mkdir -p $CUR/src; cd $CUR/src
+        echo -n "  ${CYAN}Downloading Source ${NORMAL} "
+        export GIT_SSL_NO_VERIFY=true
+        git clone https://github.com/zfsonlinux/zfs > $CUR/out/_zfs_git_clone.log 2>&1 || exit 1 &
+        rotdash $!; echo "Done. "
+        echo -n "  ${CYAN}Checking out ${GREEN}v${zfs_version}${NORMAL} "
+        cd zfs; git checkout tags/${zfs_name}-${zfs_version} > $CUR/out/_zfs_git_checkout.log 2>&1 || exit 1 &
+        rotdash $!; cd $CUR; echo "Done."; echo
+    fi
+    LINUX_MAXIMUM=$(echo $(cat $CUR/src/zfs/META | grep Maximum | awk -F: '{print $2}'))   ## Will be MAJ.MIN without .REV
+    echo "Kernel Maximum: ${LINUX_MAXIMUM}"
+fi
+
+if [ ! -f ver_kernel ]; then
+    cd $CUR/out
+    echo -n "${CYAN}Gathering Kernel Version Listing${NORMAL}  "
+    wget -q http://www.kernel.org/finger_banner || exit 1
+    if [ ! "${NOZFS}" == "1" ]; then
+        echo $(cat finger_banner | grep "${LINUX_MAXIMUM}" | awk -F: '{print $2}') > ver_kernel
+    else
+        echo $(cat finger_banner | head -n 1 | awk -F: '{print $2}') > ver_kernel
+    fi
+    echo
+#    rm finger_banner -f
+fi
+
+[ -f $CUR/out/ver_zfs ] && zfs_version=$(cat $CUR/out/ver_zfs)
+kernel_version=$(cat $CUR/out/ver_kernel)
+
+echo "Kernel Version : $kernel_version"
+if [ ! -f $CUR/dl/${kernel_name}-${kernel_version}.tar.xz ]; then
+    mkdir -p $CUR/dl; cd $CUR/dl
+    echo -n "  ${CYAN}Downloading Source ${NORMAL} "
+    PRE=$(echo $kernel_version | awk -F. '{print $1}')
+    wget -q --no-check-certificate https://cdn.kernel.org/pub/linux/kernel/v${PRE}.x/linux-${kernel_version}.tar.xz > $CUR/out/_krn_download.log 2>&1 || exit 1 &
+    rotdash $!; echo "Done."; echo
+fi
+if [ ! -d $CUR/_patches ]; then
+    echo -n "  ${CYAN}Downloading ${CPU} Patches${NORMAL} "
+    mkdir -p $CUR/_patches; cd $CUR/_patches
+    wget -q -nH -np --cut-dirs=8 --mirror $(cat /opt/tcemirror)/15.x/${CPU}/release/src/kernel/6.6-patches/
+    rm *.html -f; rm logo*.* -f
+    echo
+fi
+echo
+
+
+
+
+
+
+clear
+if [ ! "${NOZFS}" == "1" ]; then
+    showapp "Linux Kernel v${kernel_version} & ZFS v${zfs_version}"
+else
+    showapp "Linux Kernel v${kernel_version}"
+fi
+extload $CompileExt
+
+
+##> EXTRACT KERNEL SOURCE
+mkdir -p $CUR/src
+if [ ! -d $CUR/src/${kernel_name}-${kernel_version} ]; then
+    echo -n "${CYAN}Extracting Kernel Source ${NORMAL}"
+    cd $CUR/src
+    tar -xf $CUR/dl/${kernel_name}-${kernel_version}.tar.xz >$CUR/out/_extract.log 2>&1 || exit 1 &
+    rotdash $1
+    sync; sync
+    echo "Done. "
+    echo -n "${YELLOW}Time-Stamping Kernel Source${NORMAL} "
+    cd $CUR/src/${kernel_name}-${kernel_version}
+    find . -type f -exec touch {} \; > $CUR/out/_timestamp.log 2>&1 &
+    rotdash $1
+    echo "Done. "
+fi
+
+##> PATCH KERNEL SOURCE
+if [ ! -f $CUR/src/${kernel_name}-${kernel_version}/.patched ]; then
+    echo -n "${CYAN}Patching Linux Kernel${NORMAL} "
+    touch $CUR/out/_patch.log; rm $CUR/out/_patch.log -f
+    cd $CUR/_patches; patches=$(ls -1 *.patch)
+    cd $CUR/src/${kernel_name}-${kernel_version}
+    for PATCH in $patches
+    do
+        patch -Np1 -i $CUR/_patches/$PATCH >> $CUR/out/_patch.log 2>&1 #|| exit 1
+    done
+    echo "Done."
+    touch $CUR/src/${kernel_name}-${kernel_version}/.patched
+fi
+
+##> PATCH ZFS META while we're in here patching things
+[ ! "${NOZFS}" == "1" ] & sed -i 's/CDDL/GPL/g' $CUR/src/zfs/META
+
+KRN=$CUR/src/${kernel_name}-${kernel_version}
+ZFS=$CUR/src/zfs
+
+
+
+
+
+##> KERNEL .CONFIG
+REPO=$(cat /opt/tcemirror)
+if [ ! -f $CUR/_files/config-$CPU-${kernel_version}-${kernel_suffix} ]; then
+    echo -n "${CYAN}Downloading starting configuration file${NORMAL} "
+    mkdir -p $CUR/dl/cfg $CUR/_files; cd $CUR/dl/cfg
+    wget -q --no-check-certificate --mirror -nH -np --cut-dirs=6 ${REPO}/15.x/${CPU}/release/src/kernel/ >$CUR/out/_configs.log 2>&1 || exit &
+    rotdash $!; cd kernel; cat config* > $CUR/_files/config-$CPU-${kernel_version}-${kernel_suffix}
+    cp $CUR/_files/config-$CPU-${kernel_version}-${kernel_suffix} $KRN/.config -f
+    cd $KRN; rm $CUR/dl/cfg -fR
+    echo "Done. "
+fi
+cd $KRN
+if [ ! -f ./.config ]; then
+    if [ -f $CUR/_files/config-$CPU-${kernel_version}-${kernel_suffix} ]; then
+        echo "  ${YELLOW}Using ${GREEN}config-$CPU-${kernel_version}-${kernel_suffix}${NORMAL}"
+        cp $CUR/_files/config-$CPU-${kernel_version}-${kernel_suffix} ./.config -f
+    else
+        echo "${RED}ERROR! ${YELLOW}Kernel configuration file not found!${NORMAL}"; exit 1
+    fi
+fi
+
+
+##> CONFIGURE KERNEL
+cd $KRN
+if [ ! -f ./.configured ]; then
+    echo -n "${CYAN}Configuring Kernel Source${NORMAL}  "
+    E="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"; echo -e "$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E$E" > ./.blanks
+    time make oldconfig < ./.blanks > $CUR/out/_krn_config.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_krn_config.log | head -n 1 | awk '{print $2 " " $3}')"
+
+    echo -n "${CYAN}Preparing Kernel Source${NORMAL}  "
+    time make prepare scripts > $CUR/out/_krn_prepare.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_krn_config.log | head -n 1 | awk '{print $2 " " $3}')"
+
+    touch ./.configured
+fi
+
+
+##> CONFIGURE ZFS
+if [ ! "${NOZFS}" == "1" ]; then
+    if [ ! -f $CUR/src/zfs/.configured ]; then
+        cd $ZFS
+        echo -n "${CYAN}Creating ZFS Configuration File${NORMAL}  "
+        time sh autogen.sh >$CUR/out/_zfs_autogen.log 2>&1 || exit 1 &
+        rotdash $!
+        echo "Done. $(tail -n 3 $CUR/out/_zfs_autogen.log | head -n 1 | awk '{print $2 " " $3}')"
+
+        echo "${CYAN}Configuring ZFS Source Code${NORMAL}  "
+        time ./configure --prefix=/usr --libdir=/lib --includedir=/usr/include \
+            --datarootdir=/usr/local/share --enable-linux-builtin=yes \
+            --with-linux=$KRN --with-linux-obj=$KRN || > $CUR/out/_zfs_configure.log 2>&1 || exit 1 &
+        rotdash $!
+        echo "Done. $(tail -n 3 $CUR/out/_zfs_configure.log | head -n 1 | awk '{print $2 " " $3}')"
+
+        echo -n "${CYAN}Creating Built-In ZFS Configuration${NORMAL}  "
+        time ./copy-builtin $KRN >$CUR/out/_zfs_builtin.log 2>&1 || exit 1 &
+        rotdash $!
+        echo "Done. $(tail -n 3 $CUR/out/_zfs_builtin.log | head -n 1 | awk '{print $2 " " $3}')"
+
+        touch ./.configured
+    fi
+fi
+
+
+clear
+if [ ! "${NOZFS}" == "1" ]; then
+    MOD=""; [ "${zfs_mod}" == "yes" ] && MOD=" Module"
+    showapp "Linux Kernel v${kernel_version} & ZFS${MOD} v${zfs_version}"
+else
+    showapp "Linux Kernel v${kernel_version}"
+fi
+
+##> COMPILE ZFS
+if [ ! "${NOZFS}" == "1" ]; then
+    cd $ZFS
+    if [ ! -f ./.compiled ]; then
+        echo -n "${CYAN}Compiling ZFS Source Code${NORMAL}  "
+        time make -j$(nproc) >$CUR/out/_zfs_compile.log 2>&1 || exit 1 &
+        rotdash $!
+        echo "Done. $(tail -n 3 $CUR/out/_zfs_compile.log | head -n 1 | awk '{print $2 " " $3}')"
+        touch ./.compiled
+    fi
+    echo -n "${CYAN}Installing ZFS Application${NORMAL}  "
+    time sudo make DESTDIR=$CUR/out/_zfs install >$CUR/out/_zfs_install.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_zfs_install.log | head -n 1 | awk '{print $2 " " $3}')"
+fi
+
+##> RECONFIG KERNEL
+cd $KRN
+echo -n "${CYAN}RE-Configuring Kernel Source ${GREEN}${kernel_version}${NORMAL}  "
+E="\n"
+if [ "${zfs_asmod}" == "yes" ]; then
+    echo -e "m$E" > ./.blanks
+else
+    echo -e "y$E" > ./.blanks
+fi
+time make oldconfig < ./.blanks > $CUR/out/_krn_reconfig.log 2>&1 || exit 1 &
+rotdash $!
+echo "Done. $(tail -n 3 $CUR/out/_krn_reconfig.log | head -n 1 | awk '{print $2 " " $3}')"
+
+
+##> COMPILE KERNEL IMAGE
+cd $KRN
+if [ ! -f ./.compiled ]; then
+    echo -n "${CYAN}Compiling Kernel Image ${GREEN}${kernel_version}${NORMAL}  "
+    time make -j40 bzImage > $CUR/out/_krn_bzimage.log 2>&1 || exit 1 &
+    rotdash $!
+    touch ./.compiled
+    echo "Done. $(tail -n 3 $CUR/out/_krn_bzimage.log | head -n 1 | awk '{print $2 " " $3}')"
+    cp $KRN/arch/x86/boot/bzImage $CUR/out/vmlinuz
+fi
+
+
+##> COMPILE KERNEL MODULES
+cd $KRN
+if [ ! -f ./.modules ]; then
+    echo -n "${CYAN}Compiling Kernel Modules ${GREEN}${kernel_version}${NORMAL}  "
+    time make -j40 modules > $CUR/out/_krn_modules.log 2>&1 || exit 1 &
+    rotdash $!
+    touch ./.modules
+    echo "Done. $(tail -n 3 $CUR/out/_krn_modules.log | head -n 1 | awk '{print $2 " " $3}')"
+fi
+
+
+##> INSTALL KERNEL MODULES
+if [ ! -d $CUR/out/modules ]; then
+    echo -n "${CYAN}Installing Kernel Modules ${GREEN}${kernel_version}${NORMAL}  "
+    time make INSTALL_MOD_PATH="$CUR/out/modules/usr/local" modules_install > $CUR/out/_krn_modinst.log 2>&1 || exit 1 &
+    rotdash $!
+    echo "Done. $(tail -n 3 $CUR/out/_krn_modinst.log | head -n 1 | awk '{print $2 " " $3}')"
+fi
+
+
+##> SORT KERNEL MODULES
+#    echo -n "${CYAN}Sorting Modules${NORMAL}  "
+#    mkdir -p $CUR/out/ext && cd $CUR/out/ext
+#    time sh $CUR/_files/sorter.sh ${kernel_version}-${kernel_suffix}${BITS} $CUR/out/modules/ > $CUR/out/_krn_sorter.log 2>&1 &
+#    rotdash $!
+#    echo "Done. $(tail -n 3 $CUR/out/_krn_sorter.log | head -n 1 | awk '{print $2 " " $3}')"
+
+
+echo; echo "${GREEN}Done.${NORMAL}"
+

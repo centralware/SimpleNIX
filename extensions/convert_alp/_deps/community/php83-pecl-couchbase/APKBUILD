@@ -1,0 +1,39 @@
+# Contributor: Nathan Johnson <nathan@nathanjohnson.info>
+# Maintainer: Andy Postnikov <apostnikov@gmail.com>
+pkgname=php83-pecl-couchbase
+_extname=couchbase
+pkgver=4.2.2
+pkgrel=0
+pkgdesc="PHP 8.3 extension for Couchbase - PECL"
+url="https://pecl.php.net/package/couchbase"
+arch="all !riscv64 !ppc64le !s390x !loongarch64" # ftbfs
+license="Apache-2.0"
+_phpv=83
+_php=php$_phpv
+depends="$_php-pecl-igbinary"
+makedepends="$_php-dev openssl-dev>3 linux-headers cmake"
+source="php-pecl-$_extname-$pkgver.tgz::https://pecl.php.net/get/$_extname-$pkgver.tgz"
+builddir="$srcdir/$_extname-$pkgver"
+
+build() {
+	phpize$_phpv
+	./configure --prefix=/usr --with-php-config=php-config$_phpv
+	make
+}
+
+check() {
+	# no tests shipped via PECL
+	$_php -d extension="$builddir"/modules/$_extname.so --ri $_extname
+}
+
+package() {
+	make INSTALL_ROOT="$pkgdir" install
+
+	local _confdir="$pkgdir"/etc/$_php/conf.d
+	mkdir -p $_confdir
+	echo "extension=$_extname" > $_confdir/$_extname.ini
+}
+
+sha512sums="
+540684f15d1e92c9f9a69b81027b1b35c5b3a9d07e8472a92e65fbf59aa3445416fc8d079300848faba0d7c98b51bbf4231f501a3f60d9e0b0288ae9f7ad1cae  php-pecl-couchbase-4.2.2.tgz
+"

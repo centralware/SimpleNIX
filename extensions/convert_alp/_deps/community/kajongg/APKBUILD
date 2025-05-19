@@ -1,0 +1,55 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=kajongg
+pkgver=24.05.2
+pkgrel=0
+# armhf blocked by extra-cmake-modules
+arch="noarch !armhf"
+url="https://kde.org/applications/games/org.kde.kajongg"
+pkgdesc="Mah Jongg - the ancient Chinese board game for 4 players"
+license="GPL-2.0-or-later AND GFDL-1.2-only"
+depends="
+	python3
+	py3-twisted
+	"
+makedepends="
+	extra-cmake-modules
+	kconfig-dev
+	kconfigwidgets-dev
+	kdoctools-dev
+	libkmahjongg-dev
+	qt6-qtbase-dev
+	qt6-qtsvg-dev
+	samurai
+	"
+subpackages="$pkgname-doc $pkgname-lang $pkgname-pyc"
+_repo_url="https://invent.kde.org/games/kajongg.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/kajongg-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+pyc() {
+	default_pyc
+	amove usr/share/kajongg/__pycache__
+}
+
+sha512sums="
+6c5d1ac85204dd3a7f2e775660a0fbaf6b590d0d4fd64658d200b65b30edb09258a5ce4f7a5484467acef52324b28ed61022697b23100e32f1276c344b134075  kajongg-24.05.2.tar.xz
+"

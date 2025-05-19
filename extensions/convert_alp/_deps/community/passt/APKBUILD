@@ -1,0 +1,30 @@
+# Contributor: Hoang Nguyen <folliekazetani@protonmail.com>
+# Maintainer: omni <omni+alpine@hack.org>
+pkgname=passt
+pkgver=2024.07.26
+_commit=57a21d2
+_tag=${pkgver//./_}.$_commit
+pkgrel=0
+pkgdesc="Plug A Simple Socket Transport"
+url="https://passt.top/"
+arch="all"
+license="BSD-3-Clause AND GPL-2.0-or-later"
+makedepends="coreutils-fmt linux-headers"
+subpackages="$pkgname-doc"
+source="https://passt.top/passt/snapshot/passt-$_tag.tar.gz"
+builddir="$srcdir/$pkgname-$_tag"
+# complicated test setup, requires qemu and a lot of VM images
+options="!check"
+
+build() {
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" prefix=/usr install
+	install -Dm644 LICENSES/*.txt -t "$pkgdir"/usr/share/licenses/$pkgname/
+}
+
+sha512sums="
+d0fdf67bea8d77e8e6052896df2e0faf8e3e02eb726d1a428b21f3e81d7b132d14807ee796a7cddd3e68da416e86aa71f0893cc0ff2866672215e8da7e19dcac  passt-2024_07_26.57a21d2.tar.gz
+"

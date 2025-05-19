@@ -1,0 +1,265 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions; cpuType
+
+APP_NAME="diffutils"
+APP_DESC="DIFF Utils"
+APP_HOST="https://sourceforge.net/projects/acpiclient/files/acpiclient/!VERSION!/${APP_FILE}"
+APP_DEPS=""
+
+BLD_EXTS="compiletc squashfs-tools wget"
+
+#############################
+showapp "${APP_DESC}"
+
+prepare()
+{
+    #echo "${CYAN}Preparation${NORMAL}"
+    extload $BLD_EXTS
+}
+
+get_version()
+{
+    if [ ! -f $CUR/versions.lst ]; then
+        extload quiet wget
+        echo "  ${YELLOW}Obtaining Current Version${NORMAL}"
+        sudo rm $CUR/tmp -fR >/dev/null 2>&1; mkdir -p $CUR/tmp; cd $CUR/tmp
+        [ ! -f diffutils ] && wget -q --no-check-certificate https://ftp.gnu.org/gnu/${APP_NAME}
+        cat diffutils | grep ${APP_NAME} | grep href | grep ".tar.xz" | awk -F "<a " '{print $2}' > index
+        cat index | grep -v sig | awk -F"\"" '{print $2}' | awk -F"diffutils-" '{print $2}' | awk -F".tar.xz" '{print $1}' > $CUR/versions.lst
+        cd $CUR
+        sudo rm tmp -fR
+    fi
+    VERSION=$(tail -n 1 $CUR/versions.lst)
+}
+
+get_sources()
+{
+    mkdir -p $CUR/dl $CUR/src; 
+    extload quiet wget
+
+    if [ ! -f $CUR/dl/${APP_NAME}-${VERSION}.tar.xz ]; then
+        cd $CUR/dl
+        echo "  ${YELLOW}Obtaining Source Code ${GREEN}${VERSION}${NORMAL}"
+        wget -q --no-check-certificate https://ftp.gnu.org/gnu/${APP_NAME}/${APP_NAME}-${VERSION}.tar.xz
+    fi
+
+    if [ ! -d $CUR/src/${APP_NAME}-${VERSION} ]; then
+        cd $CUR/src
+        tar -xf $CUR/dl/${APP_NAME}-${VERSION}.tar.xz
+    fi
+}
+
+do_configure()
+{
+    echo "${CYAN}Configuring v${VERSION}${NORMAL}"
+    cd $CUR/src/${APP_NAME}-${VERSION}
+    if [ ! -f $CUR/src/${APP_NAME}-${VERSION}/.configured ]; then
+        ./configure --prefix=/usr/local > $CUR/_configure.log 2>&1 || exit 1
+        find . -name Makefile -type f -exec sed -i 's/-g -O2//g' {} \;
+        touch ./.configured
+    fi
+}
+
+do_compile()
+{
+    echo "${CYAN}Compiling${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+}
+
+do_install()
+{
+    echo "${CYAN}Installing${NORMAL}"
+    [ -d $CUR/bin/${VERSION} ] && sudo rm $CUR/bin/${VERSION} -fR
+    make -j$(nproc) DESTDIR=$CUR/bin/${VERSION} install > $CUR/_install.log 2>&1 || exit 1
+}
+
+do_package()
+{
+    echo "${CYAN}Packaging${NORMAL}"
+    cd $CUR/bin/${VERSION}
+    tar -zcf $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz *
+    mv $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz $REPO
+}
+
+################################
+ ###                        ###
+  ### COMMAND LINE OPTIONS ###
+ ###                        ###
+################################
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                clean) DO_CLEAN=1 ;;
+            esac ;;
+    esac
+done
+
+
+
+prepare
+[ "${VERSION}" == "" ] && get_version
+[ ! "${DO_CLEAN}" == "" ] && rm $CUR/src/${APP_NAME}-${VERSION} -fR >/dev/null 2>&1
+get_sources
+do_configure
+do_compile
+do_install
+do_package
+
+echo "${GREEN}Done.${NORMAL}"
+
+
+
+
+
+
+exit
+
+
+
+
+
+
+
+
+
+#!/bin/sh
+clear; CUR=$(pwd); OLD=$CUR; . /etc/init.d/tc-functions; . ../functions;       ##### TCL
+TITLE="
+${CYAN}        ######
+${CYAN}       ##    ## ####
+${CYAN}       ##        ##  ##     ##
+${CYAN}        ######   ##  ###   ### ########
+${CYAN}             ##  ##  #### #### ##     ## ##
+${CYAN}       ##    ##  ##  ## ### ## ##     ## ##       ########
+${CYAN}        ######   ##  ##     ## ########  ##       ##
+${CYAN}                #### ##     ## ##        ##       ##             ${WHITE}#####
+${CYAN}                     ##     ## ##        ##       ######        ${WHITE}##   ##
+${CYAN}                   #           ##        ##       ##            ${WHITE}# ${BLUE}0 0 ${WHITE}#
+${CYAN}  ######          ###                    ######## ##           ${WHITE}#   ${YELLOW}V   ${WHITE}#
+${CYAN}    ##             #                              ########    ${WHITE}##       ##
+${CYAN}    ##         ###    ### ####   ###    ###  ##### #####     ${WHITE}#           #
+${CYAN}    ##        #  ##    ###    ##  ##     ##    ##   ##      ${WHITE}#             #
+${CYAN}    ##       #   ##    ##     ##  ##     ##      ###        ${WHITE}#  #       #  #
+${CYAN}    ##          ###    ##     ##  ##     ##      ###       ${YELLOW}@@${WHITE}##         ##${YELLOW}@@
+${CYAN}    ##       # ###     ##     ##  ##     ##     ## ##    ${YELLOW}@@@@@@${WHITE}#       #${YELLOW}@@@@@@
+${CYAN}    ##      ## ### #   ##     ##  ###   ###    ##   ##   ${YELLOW}@@@@@@@${WHITE}# ${RED}CDC ${WHITE}#${YELLOW}@@@@@@@
+${CYAN}  ############  ###   ####   ####   #### ### ##### #####   ${YELLOW}@@@@@${WHITE} ##### ${YELLOW}@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+echo "${TITLE}${NORMAL}"; echo; SFX=$(GetProcessorType)
+SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtClean
+ExtLoad wget; echo
+
+cd $CUR; mkdir -p $CUR/bin $CUR/src
+[ ! -f $CUR/versions.lst ] && touch $CUR/versions.lst
+
+
+APP="diffutils"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###############
+## coreutils ##
+###############
+
+cd $CUR; echo "${CYAN}Package ${GREEN}${APP}${NORMAL}"
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtLoad compiletc texinfo
+
+VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+if [ "${VERSION}" == "" ]; then
+    echo "  ${YELLOW}Obtaining Current Version${NORMAL}"; mkdir -p $CUR/tmp; sudo rm $CUR/tmp -fR; mkdir -p $CUR/tmp; cd $CUR/tmp
+    wget -q https://ftp.gnu.org/gnu/${APP} -O - | grep ${APP} | grep href | grep ".tar.xz" | awk -F "<a " '{print $2}' > index
+    cat index | awk -F "</a" '{print $1}' | awk -F "\"" '{print $2}' > index2
+    cat index2 | grep -v doc | grep -v alpha | grep -v beta | grep -v rc | grep -v ".sig" > index3
+    cat index3 | awk -F "${APP}-" '{print $2}' | awk -F ".tar" '{print $1}' | grep -v "a" | grep -v "b" | grep -v "c" > index4
+    sort index4 > index5
+    J=0; N=0; V=0
+    for item in $(cat index5)
+    do
+        MAJ=$(echo $item | awk -F. '{print $1}'); MIN=$(echo $item | awk -F. '{print $2}'); REV=$(echo $item | awk -F. '{print $3}'); [ "${REV}" == "" ] && REV=0
+        if [ $MAJ -gt $J ]; then J=$MAJ; N=$MIN; V=$REV; fi; if [ $MIN -gt $N ]; then N=$MIN; V=$REV; fi; if [ $REV -gt $V ]; then V=$REV; fi
+    done
+    VERSION="${J}.${N}.${V}"
+    [ "${V}" == "0" ] && VERSION=$(echo $VERSION | awk -F. '{print $1 "." $2}')
+    echo ":${APP}:${VERSION}" >> $CUR/versions.lst
+    cd $CUR; sudo rm tmp -fR
+fi
+
+sudo ldconfig >/dev/null 2>&1
+
+VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+
+if [ ! -d $CUR/src/${APP}-${VERSION} ]; then
+    cd $CUR/src
+    echo "  ${YELLOW}Obtaining Source Code ${GREEN}${VERSION}${NORMAL}"
+    wget -q https://ftp.gnu.org/gnu/${APP}/${APP}-${VERSION}.tar.xz
+    tar -xf ${APP}-${VERSION}.tar.xz
+    rm ${APP}-${VERSION}.tar.xz -f
+fi
+
+cd $CUR/src/${APP}-${VERSION}
+[ ! -d build ] && mkdir build
+cd build
+if [ ! -f ./.configured ]; then
+    echo "  ${YELLOW}Configuring Source Code ${NORMAL}"
+    ../configure --prefix=/usr/local >./.configured.log 2>&1 || exit 1
+    find . -name Makefile -type f -exec sed -i 's/-g -O2//g' {} \;
+    touch ./.configured
+fi
+
+if [ ! -f ./.compiled ]; then
+    echo "  ${YELLOW}Compiling Source Code ${NORMAL}"
+    [ -f ./.compiled.log ] && make clean >/dev/null 2>&1
+    make -j$(nproc) >./.compiled.log 2>&1 || exit 1
+    touch ./.compiled
+fi
+
+if [ ! -d $CUR/bin/${APP}-${VERSION} ]; then
+    echo "  ${YELLOW}Installing Source Code ${NORMAL}"
+    make DESTDIR=$CUR/bin/${APP}-${VERSION} install >./.installed.log 2>&1 || exit 1
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+

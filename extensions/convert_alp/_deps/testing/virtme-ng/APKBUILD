@@ -1,0 +1,22 @@
+# Contributor: Milan P. Stanić <mps@arvanta.net>
+# Maintainer: Milan P. Stanić <mps@arvanta.net>
+pkgname=virtme-ng
+pkgver=1.27
+pkgrel=0
+pkgdesc="tool that allows to easily and quickly recompile and test a Linux kernel"
+url="https://github.com/arighi/virtme-ng"
+arch="all"
+license="GPL-2-or-later"
+depends="qemu python3"
+makedepends="py3-setuptools py3-argcomplete"
+options="!check" # no tests
+subpackages="$pkgname-bash-completion"
+source="$pkgname-$pkgver.tar.gz::https://github.com/arighi/virtme-ng/archive/refs/tags/v$pkgver.tar.gz"
+
+package() {
+	python setup.py install --root="$pkgdir/" --optimize=1
+}
+
+sha512sums="
+2346951737ed8c31dfe5ea91dbfbc4560bfe5dbcc34369b7b214a02b0450c55e3abb03f5ace62127c729efe6ffa6c9e627d7c8c2b4d57fd641c5ff5ec10fea4e  virtme-ng-1.27.tar.gz
+"

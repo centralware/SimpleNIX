@@ -1,0 +1,29 @@
+# Maintainer: Willow Barraco <contact@willowbarraco.fr>
+pkgname=hare-wayland
+pkgver=0_git20240711
+_commit=23b72c25d5c8f4c54834ab7703ab54e501b9c904
+pkgrel=0
+pkgdesc="Native Hare Wayland bindings"
+url="https://sr.ht/~sircmpwn/hare-wayland"
+arch="x86_64 aarch64 riscv64" # hare
+license="MPL-2.0"
+makedepends="hare hare-xml wayland-dev"
+source="
+	$pkgname-$_commit.tar.gz::https://git.sr.ht/~sircmpwn/hare-wayland/archive/$_commit.tar.gz
+"
+builddir="$srcdir/$pkgname-$_commit"
+
+build() {
+	make -j1 PREFIX=/usr
+}
+
+check() {
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" PREFIX=/usr install
+}
+sha512sums="
+f5dfe40c4b38572d4622ba1e452b820e18f5fabc7bc159930950714adb060d739a3392e2f881a5a2377ebe4ec4d8692b64f795800350fcf87c6bc62d06b8ff53  hare-wayland-23b72c25d5c8f4c54834ab7703ab54e501b9c904.tar.gz
+"

@@ -1,0 +1,44 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=libkdcraw
+pkgver=24.05.2
+pkgrel=0
+# armhf blocked by extra-cmake-modules
+arch="all !armhf"
+url="https://kde.org"
+pkgdesc="RAW image file format support for KDE"
+license="GPL-2.0-or-later AND LGPL-2.0-or-later"
+depends_dev="
+	libraw-dev
+	qt6-qtbase-dev
+	"
+makedepends="$depends_dev
+	extra-cmake-modules
+	samurai
+	"
+subpackages="$pkgname-dev"
+_repo_url="https://invent.kde.org/graphics/libkdcraw.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/libkdcraw-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+5f3e9f1c40edfe239a2658162fc46de07a2cb323b527caebf6e076ca014ed66f35f33ee7e29e5319795f133fce7329fc6b83c78a1e654478ac983df326faf0c7  libkdcraw-24.05.2.tar.xz
+"

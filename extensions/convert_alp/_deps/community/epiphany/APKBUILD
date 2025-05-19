@@ -1,0 +1,75 @@
+# Contributor: Rasmus Thomsen <oss@cogitri.dev>
+# Maintainer: team/gnome <ablocorrea@hotmail.com>
+pkgname=epiphany
+pkgver=46.3
+pkgrel=0
+pkgdesc="Simple, clean, beautiful view of the web"
+url="https://wiki.gnome.org/Apps/Web"
+arch="all"
+license="GPL-3.0-or-later"
+depends="
+	dbus:org.freedesktop.Secrets
+	gsettings-desktop-schemas
+	gst-plugins-good
+	"
+makedepends="
+	desktop-file-utils
+	gcr4-dev
+	gsettings-desktop-schemas-dev
+	gst-plugins-base-dev
+	gtk+3.0-dev
+	icu-dev
+	iso-codes-dev
+	itstool
+	json-glib-dev
+	libadwaita-dev
+	libarchive-dev
+	libdazzle-dev
+	libnotify-dev
+	libportal-dev
+	libsecret-dev
+	libxml2-dev
+	meson
+	nettle-dev
+	sqlite-dev
+	webkit2gtk-6.0-dev
+	"
+checkdepends="appstream-glib xvfb-run ibus"
+subpackages="$pkgname-lang $pkgname-doc $pkgname-dbg"
+source="https://download.gnome.org/sources/epiphany/${pkgver%.*}/epiphany-$pkgver.tar.xz"
+options="!check" # broken
+
+# secfixes:
+#   42.2-r0:
+#     - CVE-2022-29536
+#   41.3-r0:
+#     - CVE-2021-45085
+#     - CVE-2021-45086
+#     - CVE-2021-45087
+#     - CVE-2021-45088
+
+prepare() {
+	default_prepare
+
+	git init -q
+}
+
+build() {
+	abuild-meson \
+		-Db_lto=true \
+		. output
+	meson compile -C output
+}
+
+check() {
+	# https://gitlab.gnome.org/GNOME/epiphany/issues/829
+	env PATH="$PATH:$builddir/output/src" xvfb-run meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+4606f1df49bd70d907345980e49ff28d4bedbf91ad29e585909d3d026e3d4c0601cd624e8b8a5cb4e4d81b7069ac4465b837e2637c7097ea19767022e20498b3  epiphany-46.3.tar.xz
+"

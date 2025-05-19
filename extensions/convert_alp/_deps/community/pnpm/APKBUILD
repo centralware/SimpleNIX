@@ -1,0 +1,68 @@
+# Contributor: Hygna <hygna@proton.me>
+# Contributor: Fabricio Silva <hi@fabricio.dev>
+# Maintainer: Fabricio Silva <hi@fabricio.dev>
+pkgname=pnpm
+pkgver=9.7.0
+pkgrel=0
+pkgdesc="Fast, disk space efficient package manager"
+url="https://pnpm.io"
+arch="noarch"
+license="MIT"
+depends="cmd:node" # works with nodejs and nodejs-current
+subpackages="
+	$pkgname-doc
+	$pkgname-bash-completion
+	$pkgname-zsh-completion
+	$pkgname-fish-completion
+	"
+source="https://registry.npmjs.org/pnpm/-/pnpm-$pkgver.tgz"
+builddir="$srcdir/package"
+
+prepare() {
+	default_prepare
+
+	# remove node-gyp
+	rm -rf dist/node-gyp-bin dist/node_modules/node-gyp
+	# remove windows files
+	rm -rf dist/vendor/*.exe
+
+	# remove other unnecessary files
+	find . -type f \( \
+		-name '.*' -o \
+		-name '*.cmd' -o \
+		-name '*.bat' -o \
+		-name '*.map' -o \
+		-name '*.md' -o \
+		-name '*.darwin*' -o \
+		-name '*.win*' -o \
+		-iname 'README*' \) -delete
+}
+
+check() {
+	./bin/pnpm.cjs --help
+}
+
+package() {
+	local destdir="$pkgdir"/usr/share/node_modules/$pkgname
+
+	install -Dm644 LICENSE -t "$pkgdir"/usr/share/licenses/$pkgname
+
+	install -Dm644 dist/templates/completion.bash \
+		"$pkgdir"/usr/share/bash-completion/completions/$pkgname
+	install -Dm644 dist/templates/completion.zsh \
+		"$pkgdir"/usr/share/zsh/site-functions/_$pkgname
+	install -Dm644 dist/templates/completion.fish \
+		"$pkgdir"/usr/share/fish/vendor_completions.d/$pkgname.fish
+
+	install -Dm644 package.json -t "$destdir"
+	install -Dm755 bin/pnpm.cjs bin/pnpx.cjs -t "$destdir"/bin
+	cp -r dist "$destdir"/dist
+
+	mkdir -p "$pkgdir"/usr/bin
+	ln -sf ../share/node_modules/pnpm/bin/pnpm.cjs "$pkgdir"/usr/bin/pnpm
+	ln -sf ../share/node_modules/pnpm/bin/pnpx.cjs "$pkgdir"/usr/bin/pnpx
+}
+
+sha512sums="
+dc09430156b427f5ecfc79888899e1c39d2d690f004be70e05230b72cb173d96839587545d09429b55ac3c429c801b4dc3c0e002f653830a420fa2dd4e3cf9cf  pnpm-9.7.0.tgz
+"

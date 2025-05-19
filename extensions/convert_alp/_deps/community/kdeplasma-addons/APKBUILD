@@ -1,0 +1,76 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-plasma
+pkgname=kdeplasma-addons
+pkgver=6.1.4
+pkgrel=0
+pkgdesc="All kind of addons to improve your Plasma experience"
+# armhf blocked by qt6-qtdeclarative
+# ppc64le, s390x and riscv64 blocked by qt6-qtwebengine
+# loongarch64 blocked by purpose
+arch="all !armhf !ppc64le !s390x !riscv64 !loongarch64"
+url="https://kde.org/plasma-desktop/"
+license="LGPL-2.0-only AND GPL-2.0-or-later"
+depends="purpose"
+depends_dev="
+	icu-dev
+	karchive-dev
+	kcmutils-dev
+	kconfig-dev
+	kcoreaddons-dev
+	kdeclarative-dev
+	kholidays-dev
+	ki18n-dev
+	kiconthemes-dev
+	kio-dev
+	knewstuff-dev
+	knotifications-dev
+	krunner-dev
+	kservice-dev
+	kunitconversion-dev
+	kwindowsystem-dev
+	networkmanager-qt-dev
+	libplasma-dev
+	plasma5support-dev
+	qt6-qtbase-dev
+	qt6-qtdeclarative-dev
+	qt6-qtwebengine-dev
+	sonnet-dev
+	"
+makedepends="$depends_dev
+	extra-cmake-modules
+	samurai
+	"
+checkdepends="xvfb-run"
+
+case "$pkgver" in
+*.90*) _rel=unstable ;;
+*) _rel=stable ;;
+esac
+subpackages="$pkgname-dev $pkgname-lang"
+_repo_url="https://invent.kde.org/plasma/kdeplasma-addons.git"
+source="https://download.kde.org/stable/plasma/$pkgver/kdeplasma-addons-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	# converterrunnertest is broken
+	# datetimerunnertest requires running Wayland session
+	xvfb-run -a ctest --test-dir build --output-on-failure -E "(converterrunner|datetimerunner)test"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+f7be4d7deb8a3224d2103bfaef61ef41d8a5e8c913179941518d4c73085881e5c3eaba494d4457d7ce79a139608211d6aec4c7b593b8e4df1c2c2d3d677b9392  kdeplasma-addons-6.1.4.tar.xz
+"

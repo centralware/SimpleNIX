@@ -1,0 +1,272 @@
+#!/bin/sh
+
+  #############################################################################################
+
+    ######   ########     ######      ########   ##########   ######   ## ########   ##########
+  ##      ## ##      ## ##      ##    ##      ## ##         ##      ## ## ##      ## ##
+  ##         ##      ## ##            ##      ## ##         ##         ## ##      ## ##
+  ##         ##      ## ##            ##      ## ##         ##         ## ##      ## ##
+    ######   ########   ##         ## ########   ######     ##         ## ########   ######
+          ## ####       ##            ####       ##         ##         ## ##         ##
+          ## ##  ##     ##            ##  ##     ##         ##         ## ##         ##
+  ##      ## ##    ##   ##      ##    ##    ##   ##         ##      ## ## ##         ##
+    ######   ##      ##   ######      ##      ## ##########   ######   ## ##         ##########
+
+  #############################################################################################
+
+  EXT_NAME="acpid"
+  EXT_FILE="acpid"
+  EXT_DESC="ACPI Server"
+  EXT_AUTH="See Website"
+  EXT_VERS=""
+  EXT_COPY="GNU"
+  EXT_SITE="https://sourceforge.net/projects/acpid2"
+  EXT_PLAT="all"
+  EXT_KERN=""
+  EXT_DEPS=""
+
+  MAINTAIN="CentralWare"
+
+  SRC_DEPS=""
+  SRC_SITE="https://sourceforge.net/projects/acpid2"
+
+ #################################################################################################
+# We need to locate our function script  #  These are shared functions for all extension builders #
+###################################################################################################
+CUR=$(pwd); clear; mkdir -p $CUR/.log                                                             #
+###################################################################################################
+FNC=""; [ -f ./functions ] && FNC="./" # Place "functions" in OUR directory for a custom copy     #
+[ "${FNC}" == "" ] && [ -f $CUR/.res/functions ] && FNC="$CUR/.res" # In case we built it in      #
+[ "${FNC}" == "" ] && [ -f ../functions ] && FNC="../"                                            #
+[ "${FNC}" == "" ] && [ -f /opt/functions ] && FNC="/opt"                                         #
+[ "${FNC}" == "" ] && [ -f /etc/init.d/functions ] && FNC="/etc/init.d"                           #
+[ "${FNC}" == "" ] && [ -f /usr/local/etc/functions ] && FNC="/usr/local/etc"                     #
+[ "${FNC}" == "" ] && echo -e '\033[1;31mERROR! \033[0;39mSupport file not found!' && exit 1      #
+. ${FNC}/functions  #  Now that we're found it, let's load it!                                    #
+###################################################################################################
+
+function go_about()
+{
+    clear                                            # Clear the screen
+    title                                            # Show our title page
+    screenPOS 21 1; echo "${ORANGE}${EXT_NAME}   ${YELLOW}${EXT_DESC}${NORMAL}"
+    screenPOS 23 1; echo "${ORANGE}$0 ${GREEN}[option] ${MAGENTA}[switches]${NORMAL}"
+    echo
+    echo "   ${GREEN}v${GREY}ersion              ${WHITE}Goes online and obtains the most RECENT stable version number${NORMAL}"
+    echo "   ${GREEN}d${GREY}ownload             ${WHITE}Goes online and downloads the source archive${NORMAL}"
+    echo "   ${GREEN}e${GREY}xtract              ${WHITE}Extracts the source archive (downloads if not available)${NORMAL}"
+    echo "   ${GREEN}c${GREY}ompile              ${WHITE}Compile the extension (download/extract if not available)${NORMAL}"
+    echo "   ${GREEN}p${GREY}ackage              ${WHITE}Package the compiled extension (does all of the above)${NORMAL}"
+    echo
+    echo "   ${MAGENTA}version=1.2.3        ${WHITE}Assign the version to use (uses RECENT if not supplied)${NORMAL}"
+    echo
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}p              ${WHITE}Compile and package the most recent version${NORMAL}"
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}p ${MAGENTA}ver=1.2.3    ${WHITE}Compile and package version 1.2.3${NORMAL}"
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}e ${MAGENTA}ver=2.3.4    ${WHITE}Download and Extract package version 2.3.4${NORMAL}"
+    exit 1
+}
+
+###################################################################################################
+SUPPORTS=0; SRC_DEPS="wget compiletc squashfs-tools ${SRC_DEPS}"                                  #
+function go_support()                                                                             #
+{                                                                                                 #
+    [ "${SUPPORTS}" == "0" ] && extload "${SRC_DEPS}" && SUPPORTS=1                               #
+}                                                                                                 #
+###################################################################################################
+
+function go_version()
+{
+    if [ ! -f $CUR/dl/versions.lst ]; then
+        mkdir -p $CUR/tmp $CUR/dl; cd $CUR/tmp
+        [ ! -f index.html ] && wget -q --no-check-certificate https://sourceforge.net/projects/acpid2/files/
+        cat index.html | grep ".tar.xz" | grep href > index1
+        cat index1 | awk -F "href=" '{print $2}' | awk -F "acpid-" '{print $2}' | awk -F ".tar.xz" '{print $1}' > $CUR/dl/versions.lst
+        cd $CUR; rm $CUR/tmp -fR
+    fi
+    echo "$(head -n 1 $CUR/dl/versions.lst)"
+}
+
+function go_download()
+{
+    VERS=$1
+    [ "${VERS}" == "" ] && [ ! "${EXT_VERS}" == "" ] && VERS=$EXT_VERS
+    [ "${VERS}" == "" ] && VERS=$(go_version)
+    if [ ! -f $CUR/dl/${EXT_FILE}__${EXT_VERS}.tar.gz ]; then
+        echo -n "${CYAN}Downloading Source ${GREEN}v${VERS}${NORMAL} "
+        extload quiet wget; mkdir $CUR/.tmp; rm $CUR/.tmp -fR; mkdir -p $CUR/.tmp; cd $CUR/.tmp
+        wget -q --no-check-certificate https://downloads.sourceforge.net/acpid2/acpid-${VERS}.tar.xz || exit 1
+        echo -n "${YELLOW}Extracting ${NORMAL}"
+        tar -xf acpid-${VERS}.tar.xz || exit 1
+        echo -n "${ORANGE}Repackaging${NORMAL} "
+        rm acpid-${VERS}.tar.xz -f
+        tar -zcf $CUR/dl/${EXT_FILE}__${VERS}.tar.gz ./*
+        cd $CUR; rm ./.tmp -fR
+        echo
+    fi
+}
+
+function go_extract()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+    if [ ! -f $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz ]; then
+        SRC_PACK="$CUR/dl/${EXT_FILE}__${VERS}.tar.gz"
+        [ ! -f $SRC_PACK ] && go_download $VERS
+        if [ ! -d $CUR/src/${VERS} ]; then
+            echo -n "${ORANGE}Extracting ${GREEN}$VERS${NORMAL} "
+            mkdir -p $CUR/src; cd $CUR/src
+            ERR=0; tar -zxf $SRC_PACK || ERR=1
+            if [ "${ERR}" == "1" ]; then
+                echo "${RED}ERROR! ${YELLOW}Problem extracting source package${NORMAL}"; exit 1
+            fi
+            mv ${EXT_NAME}-${VERS} ${VERS}
+            echo
+        fi
+    fi
+}
+
+function go_patches()
+{
+    junk="No Patches"
+}
+
+function go_configure()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+    if [ ! -f $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz ]; then
+        SRC_PATH="$CUR/src/${VERS}"
+        [ ! -d $SRC_PATH ] && go_extract
+        cd $CUR/src/${VERS}
+        if [ ! -f ./.configured ]; then
+            echo -n "${CYAN}Configuring v${VERS}${NORMAL}"
+            ./configure > $CUR/.log/_configure.log 2>&1 || exit 1
+            touch ./.configured
+            echo
+        fi
+    fi
+}
+
+function go_compile()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+    if [ ! -f $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz ]; then
+        go_support
+        [ ! -d $CUR/src/$VERS ] && go_extract $VERS
+        getCPU
+        cd $CUR/src/$VERS
+        go_patches
+        go_configure
+
+        if [ ! -f $CUR/src/$VERS/.compiled ]; then
+            echo -n "${CYAN}Compiling${NORMAL} "
+            make -j$(nproc) > $CUR/.log/_compile.log 2>&1 || exit 1
+            echo "${CYAN}Installing${NORMAL} "
+            TMP="/tmp/builder/${EXT_FILE}/${VERS}"
+            mkdir -p $TMP; rm $TMP -fR; mkdir -p $TMP
+            make -j$(nproc) DESTDIR=$TMP install > $CUR/.log/_install.log 2>&1 || exit 1
+            echo -n "${MAGENTA}Preparing Binary ${NORMAL}"
+            cd $TMP; tar -zcf $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz * || exit 1
+            touch $CUR/src/$VERS/.compiled
+            #rm $CUR/src/${VERS} -fR
+            echo
+        fi
+    fi
+}
+
+function go_test()
+{
+    junk="No Tests"
+}
+
+function go_package()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+
+    [ ! -f $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz ] && go_compile
+    go_support && getCPU
+
+    mkdir -p $CUR/pkg; TEMP=/tmp/builders/${EXT_FILE}/${VERS}
+
+    echo -n "${CYAN}Packing Binary ${NORMAL}  "
+    mkdir -p $TEMP; rm $TEMP -fR; mkdir -p $TEMP
+    cd $TEMP; tar -zxf $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz
+    rm $TEMP/usr/local/share -fR
+    echo -n "${GREEN}Stripping${NORMAL} "
+    stripper $TEMP; cd $TEMP/..
+    [ -f $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg ] && rm $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg -f
+    echo -n "${YELLOW}Squashing${NORMAL} "
+    mksquashfs ${TEMP} $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg >$CUR/.log/pkg_squash.log 2>&1 || exit 1
+    echo -n "${ORANGE}Signing${NORMAL} "
+    cd $CUR/pkg; md5sum ${EXT_FILE}__${VERS}__${CPU}.pkg > ${EXT_FILE}__${VERS}__${CPU}.md5
+    echo
+
+    echo -n "${CYAN}Packing Documents ${NORMAL}  "
+    mkdir -p $TEMP; rm $TEMP -fR; mkdir -p $TEMP
+    cd $TEMP; tar -zxf $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz
+    rm $TEMP/usr/local/bin -fR
+    rm $TEMP/usr/local/sbin -fR
+    [ -f $CUR/pkg/${EXT_FILE}-doc__${VERS}__${CPU}.pkg ] && rm $CUR/pkg/${EXT_FILE}-doc__${VERS}__${CPU}.pkg -f
+    echo -n "${YELLOW}Squashing${NORMAL} "
+    mksquashfs ${TEMP} $CUR/pkg/${EXT_FILE}-doc__${VERS}__${CPU}.pkg >$CUR/.log/pkg_squash-doc.log 2>&1 || exit 1
+    echo -n "${ORANGE}Signing${NORMAL} "
+    cd $CUR/pkg; md5sum ${EXT_FILE}-doc__${VERS}__${CPU}.pkg > ${EXT_FILE}-doc__${VERS}__${CPU}.md5
+    echo
+
+    # Create our INFO file #
+    cd $CUR/pkg
+    CHANGELOG=""; [ -f $CUR/.res/changelog__${VERS}.txt ] && CHANGELOG=$(cat $CUR/.res/changelog__${VERS}.txt);
+    [ "$CHANGELOG" == "" ] && [ -f $CUR/.res/changelog.txt ] && CHANGELOG=$(cat $CUR/.res/changelog.txt);
+
+    COMMENTS=""; [ -f $CUR/.res/comments__${VERS}.txt ] && COMMENTS=$(cat $CUR/.res/comments__${VERS}.txt);
+    [ "$COMMENTS" == "" ] && [ -f $CUR/.res/comments.txt ] && COMMENTS=$(cat $CUR/.res/comments.txt);
+
+    FILESIZE=$(bytes $(ls ${EXT_FILE}__${VERS}__${CPU}.pkg -la | awk '{print $5}'))
+    echo -e "title:        $EXT_FILE\ndescription:  $EXT_DESC\nversion:      $VERS" > build.info
+    echo -e "platform:     $CPU\nauthor:       $EXT_AUTH\nwebsite:      $EXT_SITE" >> build.info
+    echo -e "copyright:    $EXT_COPY\nplatforms:    $EXT_PLAT\nfilesize:     $FILESIZE" >> build.info
+    echo -e "maintainer:   $MAINTAIN\ncomments:     $COMMENTS\nchangelog:    $CHANGELOG" >> build.info
+    mv build.info ${EXT_FILE}__${VERS}__${CPU}.info
+
+    FILESIZE=$(bytes $(ls ${EXT_FILE}-doc__${VERS}__${CPU}.pkg -la | awk '{print $5}'))
+    echo -e "title:        $EXT_FILE-doc\ndescription:  $EXT_DESC\nversion:      $VERS" > build.info
+    echo -e "platform:     $CPU\nauthor:       $EXT_AUTH\nwebsite:      $EXT_SITE" >> build.info
+    echo -e "copyright:    $EXT_COPY\nplatforms:    $EXT_PLAT\nfilesize:     $FILESIZE" >> build.info
+    echo -e "maintainer:   $MAINTAIN\ncomments:     $COMMENTS\nchangelog:    $CHANGELOG" >> build.info
+    mv build.info ${EXT_FILE}-doc__${VERS}__${CPU}.info
+
+    [ -d $CUR/bin ] && rm $CUR/bin -fR
+    [ -d $CUR/tmp ] && rm $CUR/tmp -fR
+    [ -d $TEMP ] && rm $TEMP -fR
+
+    echo -n "Duration: " && ticktock
+}
+
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;                                # Tell builder WHAT VERSION we're going to use
+            esac
+            ;;
+        *)
+            case $i in
+                v*)  go_version;           exit 0 ;;                        # If VERSION isn't supplied, GET IT!
+                d*)  go_download $VERSION; exit 0 ;;                        # Download the source archive
+                e*)  go_extract $VERSION;  exit 0 ;;                        # Download/Extract the source archive
+                c*)  go_compile $VERSION;  exit 0 ;;                        # Download/Extract/Compile the source archive
+                p*)  go_package $VERSION;  exit 0 ;;                        # Download/Extract/Compile/Package the source archive
+            esac
+            ;;
+    esac
+done
+
+[ -d $CUR/.tmp ] && rm $CUR/.tmp -fR
+
+[ ! "${EXT_VERS}" == "" ] && go_package && exit 0
+
+go_about && exit 1
+
+#!# END OF SCRIPT #!#
+‹      íU]kÂ0õ¹¿âê|X5Iýzö'ö¨>dñªš”&aî¿/ß2E:Ør äörîéMÈ¹å"—“–TÒÖîêÐïv«•õ»Ì¿Ó^ºY]ŽÑvu)K{.fŽÇX›ÒÐûµt@i,/ jV\ç9Útúˆ†‹§:y—Š˜yUaŸcøˆÀANauHÈ’¤(áþ®¸Æ°sTžXÁ—&Æê<™p\hIâsnÅ
+ ¥)H¦Ïˆ©¾ç¥ }%\Uf™—šÊè³êCçû6¾WÖùíÂ^‘ÛÒœní¶¡˜ëŠª6ºÒ€ã+©f­#ÎJZ þ3ƒWj•¶—êÙÑnš¤:A¼ƒmRçñ.ØçªmÆ»`›-p+à™`2ÄØàDí%>ë¹1RM
+CÏYW…ë­Ìz£=©†«EÃEôÛW8às®f˜éYË®îõðã¾Ó¹4ÿ)Mûûùßi»<KiÚóÿxC„–ó69¹ÁÓÿB/¨¬¹£ýoðïÌÿ¬Ÿ¶ƒÿƒÿ.B°@@@ÀŸÇœ¾Ò¢   

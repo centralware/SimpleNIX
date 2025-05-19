@@ -1,0 +1,59 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=mailimporter
+pkgver=24.05.2
+pkgrel=0
+pkgdesc="KDE PIM library providing support for mail applications"
+# armhf blocked by extra-cmake-modules
+# ppc64le, s390x and riscv64 blocked by qt6-qtwebengine -> akonadi
+# loongarch64 blocked by pimcommon
+arch="all !armhf !ppc64le !s390x !riscv64 !loongarch64"
+url="https://kontact.kde.org/"
+license="GPL-2.0-or-later"
+depends_dev="
+	akonadi-dev
+	akonadi-mime-dev
+	karchive-dev
+	kconfig-dev
+	kcoreaddons-dev
+	ki18n-dev
+	kmime-dev
+	libkdepim-dev
+	pimcommon-dev
+	qt6-qtbase-dev
+	"
+makedepends="
+	$depends_dev
+	doxygen
+	extra-cmake-modules
+	graphviz
+	samurai
+	"
+checkdepends="xvfb-run"
+subpackages="$pkgname-dev $pkgname-lang"
+_repo_url="https://invent.kde.org/pim/mailimporter.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/mailimporter-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_QCH=ON
+	cmake --build build
+}
+
+check() {
+	xvfb-run ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+1e61921de94ea9d374ac039ac3cfe41841b9928a2f68a527c7ba5656b0a9f550a0fcddc15b3640ab608ef0b0c01ed04e93f4cbbf38680c19d183a8250f14b88b  mailimporter-24.05.2.tar.xz
+"

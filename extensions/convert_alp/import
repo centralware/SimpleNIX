@@ -1,0 +1,21 @@
+#!/bin/sh
+CUR=$(pwd)
+
+SOURCES=/mnt/repoAL/src
+CORES="community main testing"
+
+for CORE in $CORES
+do
+    echo $CORE
+    cd $SOURCES/$CORE
+    ls *.tar.gz -1 >/tmp/FILELIST.txt
+    for FILENAME in $(cat /tmp/FILELIST.txt)
+    do
+        if [ ! "${FILENAME}" == "" ]; then
+            MASTER=${FILENAME/.tar.gz/}
+            mkdir -p $CUR/$CORE/$MASTER
+            cd $CUR/$CORE/$MASTER
+            tar -zxf $SOURCES/$CORE/$FILENAME
+        fi
+    done
+done

@@ -1,0 +1,119 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=bearssl
+pkgver=0.6_git20230221
+_pkgcommit=79c060eea3eea1257797f15ea1608a9a9923aa6f
+pkgrel=0
+pkgdesc="The BearSSL implementation of the SSL/TLS protocol"
+url="https://bearssl.org/"
+arch="all"
+license="MIT"
+#bearssl-$pkgver.tar.gz::https://bearssl.org/gitweb/?p=BearSSL;a=snapshot;h=$_pkgcommit;sf=tgz
+source="https://bearssl.org/gitweb/?p=BearSSL;a=snapshot;h=$_pkgcommit;sf=tgz"
+dest="BearSSL-79c060e"
+patches="bearssl-brssl-dynamic.patch libbearssl.pc"
+pkgfile="${pkgname}-${pkgver}.tar.gz"
+pkgdir="${pkgname}-${pkgver}"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    echo "Getting current version information..."
+    [ "${pkgver}" == "" ] && get_version
+
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate -O $pkgfile $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -zxf ${pkgfile}
+        mv $dest $pkgdir
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_patches()
+{
+    cd $CUR/src/${pkgdir}
+    for PATCH in $patches
+    do
+        patch -Np1 -i $CUR/_patches/${PATCH}
+    done
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    src_patches
+
+    cd $CUR/src/${pkgdir}
+
+# AES_pwr8 UNAVAILABLE
+
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) \
+        CC="${CC:-gcc}" \
+        CFLAGS="-W -Wall -fPIC $CFLAGS" \
+        LD="${CC:-gcc}" \
+        LDFLAGS="$CFLAGS $LDFLAGS" \
+        LDDLL="${CC:-gcc}" \
+        LDDLLFLAGS="$CFLAGS $LDFLAGS -shared -Wl,-soname,libbearssl.so.${pkgver%%.*}" \
+        D=".so.$pkgver" > \
+        $CUR/_compile.log 2>&1 || exit 1
+
+#        builddir=$PWD/src/BearSSL-${_pkgcommit:0:7}
+        builddir=$CUR/src/${pkgdir}
+        pkgdir=$CUR/ext/${pkgname}
+        mkdir -p "$pkgdir"/bin "$pkgdir"/lib "$pkgdir"/usr/include "$pkgdir"/usr/lib
+        cp -f "$builddir/build/brssl" "$pkgdir/bin/"
+        cp -f "$builddir"/inc/* "$pkgdir/usr/include/"
+        cp -f "$builddir/build/libbearssl.a" "$pkgdir/usr/lib/"
+        cp -f "$builddir/build/libbearssl.so.$pkgver" "$pkgdir/lib/"
+        ln -sf "libbearssl.so.$pkgver" "$pkgdir/lib/libbearssl.so.${pkgver%%.*}"
+        ln -sf "libbearssl.so.${pkgver%%.*}" "$pkgdir/lib/libbearssl.so"
+#        install -D -m644 "$srcdir"/libbearssl.pc "$pkgdir"/usr/lib/pkgconfig/libbearssl.pc
+
+        cd "$builddir/build"
+        echo "${CYAN}Testing - Prep...${NORMAL}"
+        ./testx509 > $CUR/_test1.log 2>&1
+        echo "${CYAN}Testing - This may take a while!${NORMAL}"
+        ./testcrypto all > $CUR/_test2.log 2>&1
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget
+
+src_build
+
+

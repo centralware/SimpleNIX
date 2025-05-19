@@ -1,0 +1,137 @@
+#!/bin/sh
+clear; CUR=$(pwd); OLD=$CUR; . /etc/init.d/tc-functions; . ../functions;       ##### TCL
+TITLE="
+${CYAN}        ######
+${CYAN}       ##    ## ####
+${CYAN}       ##        ##  ##     ##
+${CYAN}        ######   ##  ###   ### ########
+${CYAN}             ##  ##  #### #### ##     ## ##
+${CYAN}       ##    ##  ##  ## ### ## ##     ## ##       ########
+${CYAN}        ######   ##  ##     ## ########  ##       ##
+${CYAN}                #### ##     ## ##        ##       ##             ${WHITE}#####
+${CYAN}                     ##     ## ##        ##       ######        ${WHITE}##   ##
+${CYAN}                   #           ##        ##       ##            ${WHITE}# ${BLUE}0 0 ${WHITE}#
+${CYAN}  ######          ###                    ######## ##           ${WHITE}#   ${YELLOW}V   ${WHITE}#
+${CYAN}    ##             #                              ########    ${WHITE}##       ##
+${CYAN}    ##         ###    ### ####   ###    ###  ##### #####     ${WHITE}#           #
+${CYAN}    ##        #  ##    ###    ##  ##     ##    ##   ##      ${WHITE}#             #
+${CYAN}    ##       #   ##    ##     ##  ##     ##      ###        ${WHITE}#  #       #  #
+${CYAN}    ##          ###    ##     ##  ##     ##      ###       ${YELLOW}@@${WHITE}##         ##${YELLOW}@@
+${CYAN}    ##       # ###     ##     ##  ##     ##     ## ##    ${YELLOW}@@@@@@${WHITE}#       #${YELLOW}@@@@@@
+${CYAN}    ##      ## ### #   ##     ##  ###   ###    ##   ##   ${YELLOW}@@@@@@@${WHITE}# ${RED}CDC ${WHITE}#${YELLOW}@@@@@@@
+${CYAN}  ############  ###   ####   ####   #### ### ##### #####   ${YELLOW}@@@@@${WHITE} ##### ${YELLOW}@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+echo "${TITLE}${NORMAL}"; echo; SFX=$(GetProcessorType)
+SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtClean
+ExtLoad wget; echo
+
+cd $CUR; mkdir -p $CUR/bin $CUR/src
+[ ! -f $CUR/versions.lst ] && touch $CUR/versions.lst
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########
+## xz ##
+########
+cd $CUR; echo "${CYAN}Package ${GREEN}xz${NORMAL}"
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtLoad compiletc
+VERSION=$(cat versions.lst | grep ":xz:" | awk -F: '{print $3}')
+if [ "${VERSION}" == "" ]; then
+    mkdir tmp; cd tmp
+    wget -q https://raw.githubusercontent.com/tukaani-project/xz/refs/heads/master/NEWS -O index
+    VERSION=$(cat index | grep "(" | head -n 1 | awk '{print $1}')
+    echo ":xz:${VERSION}" >> $CUR/versions.lst
+    cd $CUR; sudo rm tmp -fR
+fi
+
+VERSION=$(cat versions.lst | grep ":xz:" | awk -F: '{print $3}')
+
+if [ ! -d $CUR/src/xz-${VERSION} ]; then
+    cd $CUR/src; echo "${YELLOW}  Downloading source code ${GREEN}${VERSION}${NORMAL}"
+#    git clone --depth 1 --branch v${VERSION} https://github.com/tukaani-project/xz >/dev/null 2>&1
+    wget -q https://downloads.sourceforge.net/project/lzmautils/xz-${VERSION}.tar.gz
+    tar -zxf xz-${VERSION}.tar.gz
+    rm xz-${VERSION}.tar.gz -f
+#    mv $CUR/src/xz $CUR/src/xz-${VERSION}
+fi
+
+cd $CUR/src/xz-${VERSION}
+
+if [ ! -f ./.configured ]; then
+    echo "${YELLOW}  Configuring source code${NORMAL}"
+    CC="gcc -mtune=generic -Os -pipe" CXX="g++ -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" \
+        ./configure --prefix=/usr/local --disable-static --docdir=/usr/local/share/doc/xz >./.configured.log 2>&1
+    find . -name Makefile -type f -exec sed -i 's/-g -O2//g' {} \;
+    touch ./.configured
+fi
+
+if [ ! -f ./.compiled ]; then
+    echo "${YELLOW}  Compiling source code${NORMAL}"
+    time make -j$(nproc) >./.compiled.log 2>&1
+    touch ./.compiled
+fi
+
+if [ ! -d $CUR/bin/xz-${VERSION} ]; then
+    echo "${YELLOW}  Installing source code${NORMAL}"
+    make DESTDIR=$CUR/bin/xz-${VERSION} install >./.installed.log 2>&1
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

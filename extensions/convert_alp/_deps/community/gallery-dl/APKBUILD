@@ -1,0 +1,44 @@
+# Contributor: Hoang Nguyen <folliekazetani@protonmail.com>
+# Maintainer: Hoang Nguyen <folliekazetani@protonmail.com>
+pkgname=gallery-dl
+pkgver=1.27.1
+pkgrel=0
+pkgdesc="CLI tool to download image galleries"
+url="https://github.com/mikf/gallery-dl"
+arch="noarch"
+license="GPL-2.0-or-later"
+depends="py3-requests python3"
+makedepends="py3-gpep517 py3-setuptools py3-wheel"
+checkdepends="py3-pytest yt-dlp"
+subpackages="
+	$pkgname-doc
+	$pkgname-pyc
+	$pkgname-bash-completion
+	$pkgname-zsh-completion
+	$pkgname-fish-completion
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/mikf/gallery-dl/archive/v$pkgver.tar.gz
+	disable-type-error-test.patch
+	"
+
+build() {
+	make man completion
+
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	make test
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+d3243bd23e7a743d98b9745d78b653546a49a97dd8468b60014fa6ba74071de8057c8b479dc3d74854b4c194034b027fe15bc530a60dea34dcc6221b105c285c  gallery-dl-1.27.1.tar.gz
+2c5117d7c15900744ead754f165933da7e7968a6adc4290e4f41284f75825354590fee09dc7d006d2f5b7ed3e755e76c5623054439dbbd4376b1edd9ed37188c  disable-type-error-test.patch
+"

@@ -1,0 +1,65 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=kosmindoormap
+pkgver=24.05.2
+pkgrel=0
+# armhf blocked by qt6-qtdeclarative
+arch="all !armhf"
+url="https://invent.kde.org/libraries/kosmindoormap"
+pkgdesc="OSM multi-floor indoor map renderer"
+license="BSD-2-Clause AND BSD-3-Clause MIT AND LGPL-2.0-or-later"
+depends_dev="
+	ki18n-dev
+	kopeninghours-dev
+	kpublictransport-dev
+	protobuf-dev
+	qt6-qtbase-dev
+	qt6-qtdeclarative-dev
+	zlib-dev
+	"
+makedepends="$depends_dev
+	bison
+	extra-cmake-modules
+	flex
+	samurai
+	"
+subpackages="$pkgname-dev $pkgname-lang"
+_repo_url="https://invent.kde.org/libraries/kosmindoormap.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/kosmindoormap-$pkgver.tar.xz"
+
+build() {
+	LDFLAGS="$LDFLAGS -Wl,--copy-dt-needed-entries" \
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	local skipped_tests="("
+	local tests="
+		"
+	if [ "$CARCH" = "x86" ]; then
+		tests="$tests
+			levelparser
+			platformfinder
+			"
+	fi
+	for test in $tests; do
+		skipped_tests="$skipped_tests|$test"
+	done
+	skipped_tests="$skipped_tests)test"
+	ctest --test-dir build --output-on-failure -E "$skipped_tests"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+2bf2998be61893d651dbd1a9a0e509c6cf83a122e9ee95c265bf0507706c77b20b7e64d462840d76c7b1aa6f9d884305812e32dc4058c09a0f724994d2e073b1  kosmindoormap-24.05.2.tar.xz
+"

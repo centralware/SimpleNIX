@@ -1,0 +1,120 @@
+#!/bin/sh
+clear; CUR=$(pwd); OLD=$CUR; . /etc/init.d/tc-functions; . ../functions;       ##### TCL
+TITLE="
+${CYAN}        ######
+${CYAN}       ##    ## ####
+${CYAN}       ##        ##  ##     ##
+${CYAN}        ######   ##  ###   ### ########
+${CYAN}             ##  ##  #### #### ##     ## ##
+${CYAN}       ##    ##  ##  ## ### ## ##     ## ##       ########
+${CYAN}        ######   ##  ##     ## ########  ##       ##
+${CYAN}                #### ##     ## ##        ##       ##             ${WHITE}#####
+${CYAN}                     ##     ## ##        ##       ######        ${WHITE}##   ##
+${CYAN}                   #           ##        ##       ##            ${WHITE}# ${BLUE}0 0 ${WHITE}#
+${CYAN}  ######          ###                    ######## ##           ${WHITE}#   ${YELLOW}V   ${WHITE}#
+${CYAN}    ##             #                              ########    ${WHITE}##       ##
+${CYAN}    ##         ###    ### ####   ###    ###  ##### #####     ${WHITE}#           #
+${CYAN}    ##        #  ##    ###    ##  ##     ##    ##   ##      ${WHITE}#             #
+${CYAN}    ##       #   ##    ##     ##  ##     ##      ###        ${WHITE}#  #       #  #
+${CYAN}    ##          ###    ##     ##  ##     ##      ###       ${YELLOW}@@${WHITE}##         ##${YELLOW}@@
+${CYAN}    ##       # ###     ##     ##  ##     ##     ## ##    ${YELLOW}@@@@@@${WHITE}#       #${YELLOW}@@@@@@
+${CYAN}    ##      ## ### #   ##     ##  ###   ###    ##   ##   ${YELLOW}@@@@@@@${WHITE}# ${RED}CDC ${WHITE}#${YELLOW}@@@@@@@
+${CYAN}  ############  ###   ####   ####   #### ### ##### #####   ${YELLOW}@@@@@${WHITE} ##### ${YELLOW}@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+echo "${TITLE}${NORMAL}"; echo; SFX=$(GetProcessorType)
+SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtClean
+ExtLoad wget git; echo
+
+cd $CUR; mkdir -p $CUR/bin $CUR/src
+[ ! -f $CUR/versions.lst ] && touch $CUR/versions.lst
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##############
+## libexpat ##
+##############
+INCLUDE_libexpat=1
+if [ $INCLUDE_libexpat -gt 0 ]; then
+    cd $CUR; echo "${CYAN}Package ${GREEN}libexpat${NORMAL}"
+    echo -n "${CYAN}Loading support extensions:${NORMAL}"
+    ExtLoad autoconf automake bash compiletc gettext-dev libtool-dev
+    VERSION=$(cat versions.lst | grep ":libexpat:" | awk -F: '{print $3}')
+    if [ "${VERSION}" == "" ]; then
+        mkdir tmp; cd tmp
+        wget -q https://raw.githubusercontent.com/libexpat/libexpat/refs/heads/master/expat/README.md
+        VERSION=$(cat README.md | grep ", Release " | grep "# Expat" | awk '{print $4}')
+        echo ":libexpat:${VERSION}" >> $CUR/versions.lst
+        cd $CUR; sudo rm tmp -fR
+    fi
+    VERSION=$(cat versions.lst | grep ":libexpat:" | awk -F: '{print $3}'); VER=${VERSION//./_}
+    [ "${VERSION}" == "" ] && exit 1
+    if [ ! -d $CUR/src/libexpat-${VERSION} ]; then
+        cd $CUR/src; echo "  Downloading source code [${VER}]"
+        git clone --depth 1 --branch R_${VER} https://github.com/libexpat/libexpat >/dev/null 2>&1
+        mv $CUR/src/libexpat $CUR/src/libexpat-${VERSION}
+    fi
+    cd $CUR/src/libexpat-${VERSION}/expat
+    if [ ! -f ./configure ]; then
+        echo "  ${YELLOW}Creating configuration${NORMAL}"
+        ./buildconf.sh >/dev/null 2>&1 || exit 1
+    fi
+    if [ ! -f ./.configured ]; then
+        echo "  ${YELLOW}Configuring libexpat${NORMAL}"
+        time ./configure > ./.configred.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+    if [ ! -f ./.compiled ]; then
+        echo "  ${YELLOW}Compiling libexpat${NORMAL}"
+        time make -j$(nproc) > ./.compiled.log 2>&1 || exit 1
+        touch ./.compiled
+    fi
+    if [ ! -d $CUR/bin/libexpat-${VERSION} ]; then
+        echo "  ${YELLOW}Installing libexpat${NORMAL}"
+        make DESTDIR=$CUR/bin/libexpat-${VERSION} install >./.installed.log 2>&1 || exit 1
+    fi
+    echo
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

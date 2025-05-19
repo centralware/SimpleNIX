@@ -1,0 +1,56 @@
+# Maintainer: Marian Buschsieweke <marian.buschsieweke@posteo.net>
+# Contributor: Marian Buschsieweke <marian.buschsieweke@posteo.net>
+pkgname=kicad-library
+pkgver=8.0.4
+pkgrel=0
+pkgdesc="KiCad component and footprint libraries"
+url="https://kicad.github.io/"
+# limited by kicad
+arch="noarch !armv7 !armhf !riscv64 !s390x"
+license="GPL-3.0-or-later"
+makedepends="cmake samurai"
+depends="kicad"
+subpackages="$pkgname-3d:three_d"
+source="
+	https://gitlab.com/kicad/libraries/kicad-symbols/-/archive/$pkgver/kicad-symbols-$pkgver.tar.gz
+	https://gitlab.com/kicad/libraries/kicad-footprints/-/archive/$pkgver/kicad-footprints-$pkgver.tar.gz
+	https://gitlab.com/kicad/libraries/kicad-packages3D/-/archive/$pkgver/kicad-packages3D-$pkgver.tar.gz
+	"
+options="!check" # package only provides data files, so not tests possible
+
+build() {
+	cd "$srcdir"/kicad-symbols-$pkgver
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr
+	cmake --build build
+
+	cd "$srcdir"/kicad-footprints-$pkgver
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr
+	cmake --build build
+
+	cd "$srcdir"/kicad-packages3D-$pkgver
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install "$srcdir"/kicad-symbols-$pkgver/build
+	DESTDIR="$pkgdir" cmake --install "$srcdir"/kicad-footprints-$pkgver/build
+}
+
+three_d() {
+	pkgdesc="3D models for KiCad component and footprint libraries"
+	depends="$pkgname"
+	DESTDIR="$subpkgdir" cmake --install "$srcdir"/kicad-packages3D-$pkgver/build
+
+	# Remove .step version of 3D models; only .wrl versions are needed
+	find "$subpkgdir" -name '*.step' -exec rm {} \;
+}
+
+sha512sums="
+d82c694445f2641095afb4be51df861e9b048c385e67236348ba569d9755f168019f61f005e38b805653d18e1c5d5ce3b8a385edcf387b99ef0ecb603443d376  kicad-symbols-8.0.4.tar.gz
+c834834cc30d5b2ad1c8252abffa699e9addff576efc73a6aacc70f746532b5611a8aa158efa5260b69150cdabe8f20c3e1887ef6d9e76c6dc7d41ab335752d1  kicad-footprints-8.0.4.tar.gz
+44cc420b7f7e44dccaf389f5871545243f5c9148e4baf503157dddfca04cf419182dce75ab0f0a13f1f2e7870190723c68dd55eed3efb4d45a658a821b911051  kicad-packages3D-8.0.4.tar.gz
+"

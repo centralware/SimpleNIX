@@ -1,0 +1,42 @@
+# Maintainer: Patrycja Rosa <alpine@ptrcnull.me>
+pkgname=py3-unearth
+pkgver=0.17.0
+pkgrel=0
+pkgdesc="Utility to fetch and download python packages"
+url="https://github.com/frostming/unearth"
+arch="noarch"
+license="MIT"
+depends="py3-packaging py3-requests py3-httpx"
+makedepends="py3-pdm-backend py3-gpep517 py3-installer py3-trustme"
+checkdepends="
+	py3-pytest
+	py3-flask
+	py3-requests-wsgi-adapter
+	py3-pytest-httpserver
+	py3-pytest-mock
+"
+subpackages="$pkgname-pyc"
+source="https://github.com/frostming/unearth/archive/$pkgver/py3-unearth-$pkgver.tar.gz"
+builddir="$srcdir/unearth-$pkgver"
+
+build() {
+	export PDM_BUILD_SCM_VERSION=$pkgver
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+50e5c4955966846928010f7a0625e126039526cbe0fdb307c4bffb8d9f600cf986901e06e290965725fb08caa1cb7780c2bb26a455ad870f918d5dc0aa3900e9  py3-unearth-0.17.0.tar.gz
+"

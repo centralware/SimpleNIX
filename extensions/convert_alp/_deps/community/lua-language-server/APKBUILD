@@ -1,0 +1,49 @@
+# Maintainer: Jordan Christiansen <xordspar0@gmail.com>
+pkgname=lua-language-server
+pkgver=3.10.3
+pkgrel=0
+pkgdesc="Language Server for Lua"
+url="https://github.com/LuaLS/lua-language-server"
+# s390x/ppc64le: ftbfs
+arch="all !s390x !ppc64le"
+license="MIT"
+makedepends="bash linux-headers samurai"
+subpackages="$pkgname-doc"
+source="https://github.com/LuaLS/lua-language-server/archive/refs/tags/$pkgver/lua-language-server-$pkgver.tar.gz
+	lua-language-server-submodules-$pkgver.zip.noauto::https://github.com/LuaLS/lua-language-server/releases/download/$pkgver/lua-language-server-$pkgver-submodules.zip
+	wrapper
+	"
+
+prepare() {
+	unzip -o "$srcdir"/lua-language-server-submodules-$pkgver.zip.noauto \
+		-d "$builddir"
+	default_prepare
+}
+
+build() {
+	ninja -C 3rd/luamake -f compile/ninja/linux.ninja
+	./3rd/luamake/luamake all
+}
+
+check() {
+	./3rd/luamake/luamake unit-test
+}
+
+package() {
+	install -Dm755 "$srcdir"/wrapper "$pkgdir"/usr/bin/lua-language-server
+	install -Dm755 bin/lua-language-server \
+		-t "$pkgdir"/usr/lib/lua-language-server/bin
+	install -Dm644 bin/main.lua \
+		-t "$pkgdir"/usr/lib/lua-language-server/bin
+	install -Dm644 debugger.lua main.lua \
+		-t "$pkgdir"/usr/lib/lua-language-server
+	cp -a locale meta script "$pkgdir"/usr/lib/lua-language-server
+
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
+
+sha512sums="
+91be93b2fe5426e6e8553fcab200bd1c95b89464b228258c1c02a8406d77667b1f672495f9460425aaaa684caff85b707c3ef0d0e90bd91d72fed48c558ff9f6  lua-language-server-3.10.3.tar.gz
+b38c3a5f3943b929b6bd6400daa8cea3f711650f690b5a8f52c54e9944af54f5334099a2ecaba4f53eddf845b05ae61c9beaf5291282ccf441a2c1d6fb942f96  lua-language-server-submodules-3.10.3.zip.noauto
+d8d34d2ae8073c256b5f98f4cc7db058fbb92d63a5709894fca898ab47fcfcfca2d1419a1060c29464fbad937e3d09f0cde404b4d98609eec934ea4392044849  wrapper
+"

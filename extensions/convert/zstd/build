@@ -1,0 +1,248 @@
+#!/bin/sh
+clear; CUR=$(pwd); OLD=$CUR; . /etc/init.d/tc-functions; . ../functions;       ##### TCL
+TITLE="
+${CYAN}        ######
+${CYAN}       ##    ## ####
+${CYAN}       ##        ##  ##     ##
+${CYAN}        ######   ##  ###   ### ########
+${CYAN}             ##  ##  #### #### ##     ## ##
+${CYAN}       ##    ##  ##  ## ### ## ##     ## ##       ########
+${CYAN}        ######   ##  ##     ## ########  ##       ##
+${CYAN}                #### ##     ## ##        ##       ##             ${WHITE}#####
+${CYAN}                     ##     ## ##        ##       ######        ${WHITE}##   ##
+${CYAN}                   #           ##        ##       ##            ${WHITE}# ${BLUE}0 0 ${WHITE}#
+${CYAN}  ######          ###                    ######## ##           ${WHITE}#   ${YELLOW}V   ${WHITE}#
+${CYAN}    ##             #                              ########    ${WHITE}##       ##
+${CYAN}    ##         ###    ### ####   ###    ###  ##### #####     ${WHITE}#           #
+${CYAN}    ##        #  ##    ###    ##  ##     ##    ##   ##      ${WHITE}#             #
+${CYAN}    ##       #   ##    ##     ##  ##     ##      ###        ${WHITE}#  #       #  #
+${CYAN}    ##          ###    ##     ##  ##     ##      ###       ${YELLOW}@@${WHITE}##         ##${YELLOW}@@
+${CYAN}    ##       # ###     ##     ##  ##     ##     ## ##    ${YELLOW}@@@@@@${WHITE}#       #${YELLOW}@@@@@@
+${CYAN}    ##      ## ### #   ##     ##  ###   ###    ##   ##   ${YELLOW}@@@@@@@${WHITE}# ${RED}CDC ${WHITE}#${YELLOW}@@@@@@@
+${CYAN}  ############  ###   ####   ####   #### ### ##### #####   ${YELLOW}@@@@@${WHITE} ##### ${YELLOW}@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+echo "${TITLE}${NORMAL}"; echo; SFX=$(GetProcessorType)
+SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+#ExtClean
+#ExtLoad wget git; echo
+
+cd $CUR; mkdir -p $CUR/bin $CUR/src
+[ ! -f $CUR/versions.lst ] && touch $CUR/versions.lst
+
+APP="zstd"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##########
+## zstd ##
+##########
+cd $CUR; echo "${CYAN}Package ${GREEN}${APP}${NORMAL}"
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtLoad compiletc
+
+VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+if [ "${VERSION}" == "" ]; then
+    echo "  ${YELLOW}Obtaining Current Version${NORMAL}"
+    mkdir -p $CUR/tmp; sudo rm $CUR/tmp -fR; mkdir -p $CUR/tmp; cd $CUR/tmp
+    wget -q https://github.com/facebook/zstd/releases -O - | grep "Zstandard v" > index
+    cat index | awk -F "Zstandard " '{print $2}' | awk '{print $1}' | grep v > index2
+    for item in $(cat index2); do [ "${VERSION}" == "" ] && VERSION=${item/v/}; done
+    echo ":${APP}:${VERSION}" >> $CUR/versions.lst; cd $CUR; sudo rm tmp -fR
+fi
+
+VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+if [ ! -d src/${APP}-${VERSION} ]; then
+    cd $CUR/src; echo "  ${YELLOW}Obtaining Source Code ${GREEN}${VERSION}${NORMAL}"
+    wget -q https://downloads.sourceforge.net/project/zstandard.mirror/v${VERSION}/${APP}-${VERSION}.tar.gz
+    tar -zxf ${APP}-${VERSION}.tar.gz
+    rm ${APP}-${VERSION}.tar.gz -f
+fi
+
+cd $CUR/src/${APP}-${VERSION} || exit 1
+
+if [ ! -f ./.configured ]; then
+    find . -name Makefile -type f -exec sed -i 's/-O3//g' {} \;
+    find . -name libzstd.mk -type f -exec sed -i 's/-O3//g' {} \;
+    touch ./.configured
+fi
+
+if [ ! -f ./.compiled ]; then
+    echo "  ${YELLOW}Compiling source code${NORMAL}"
+    make -j$(nproc) CC="gcc -mtune=generic -Os -pipe" CXX="g++ -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >./.compiled.log 2>&1 || exit 1
+    touch ./.compiled
+fi
+
+if [ ! -d $CUR/bin/${APP}-${VERSION} ]; then
+    echo "  ${YELLOW}Installing source code${NORMAL}"
+    make DESTDIR=$CUR/bin/${APP}-${VERSION} CC="gcc -mtune=generic -Os -pipe" CXX="g++ -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" prefix=/usr/local install >./.installed.log 2>&1 || exit 1
+fi
+
+#ldconfig
+
+exit
+
+    cd $CUR/src/e2fsprogs-${VERSION}
+    if [ ! -f ./.configured ]; then
+        echo "  ${YELLOW}Configuring source code${NORMAL}"
+        time ./configure > ./.configured.log 2>&1  || exit 1
+        touch ./.configured
+    fi
+    if [ ! -f ./.compiled ]; then
+        echo "  ${YELLOW}Compiling source code${NORMAL}"
+        time make -j$(nproc) > ./.compiled.log 2>&1 || exit 1
+        touch ./.compiled
+    fi
+    if [ ! -d $CUR/bin/e2fsprogs-${VERSION} ]; then
+        echo "  ${YELLOW}Installing compiled code${NORMAL}"
+        make DESTDIR=/tmp/packager/e2fsprogs-${VERSION} install > ./.installed.log 2>&1 || exit 1
+        sudo mv /tmp/packager/e2fsprogs-${VERSION} $CUR/bin/
+    fi
+    echo
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#cd $CUR; mkdir zstd; cd zstd
+# zstd-1.5.2-upstream_fixes-1.patch
+# zstd-1.5.2.tar.gz
+
+
+
+
+
+#cd $CUR; mkdir bash; cd bash
+# bash-5.2.15.tar.gz
+#wget -q https://ftp.gnu.org/gnu/bash -O index
+
+#cd $CUR; mkdir bc; cd bc
+# bc-6.1.1.tar.xz
+#wget -q https://ftp.gnu.org/gnu/bc -O index
+
+#cd $CUR; mkdir binutils; cd binutils
+# binutils-2.39.tar.xz
+#wget -q https://ftp.gnu.org/gnu/binutils -O index
+
+#cd $CUR; mkdir coreutils; cd coreutils
+# coreutils-9.1-i18n-1.patch
+# coreutils-9.1.tar.xz
+#wget -q https://ftp.gnu.org/gnu/coreutils -O index
+
+#cd $CUR; mkdir diffutils;cd diffutils
+# diffutils-3.8.tar.xz
+#wget -q https://ftp.gnu.org/gnu/diffutils -O index
+
+#cd $CUR; mkdir findutils; cd findutils
+# findutils-4.9.0.tar.xz
+#wget -q https://ftp.gnu.org/gnu/findutils -O index
+
+#cd $CUR; mkdir gawk; cd gawk
+# gawk-5.2.1.tar.xz
+#wget -q https://ftp.gnu.org/gnu/gawk -O index
+
+#cd $CUR; mkdir gcc; cd gcc
+# gcc-12.2.0.tar.xz
+#wget -q https://ftp.gnu.org/gnu/gcc -O index
+
+#cd $CUR; mkdir gettext; cd gettext
+# gettext-0.21.1.tar.xz
+#wget -q https://ftp.gnu.org/gnu/gettext -O index
+
+#cd $CUR; mkdir glibc; cd glibc
+# glibc-2.36-Os.patch
+# glibc-2.36-fhs-1.patch
+# glibc-2.36.tar.xz
+# glibc-uclibc-compat-ld-cache.patch
+#wget -q https://ftp.gnu.org/gnu/glibc -O index
+
+#cd $CUR; mkdir grep; cd grep
+# grep-3.8.tar.xz
+#wget -q https://ftp.gnu.org/gnu/grep -O index
+
+#cd $CUR; mkdir gzip; cd gzip
+# gzip-1.12.tar.xz
+#wget -q https://ftp.gnu.org/gnu/gzip -O index
+
+#cd $CUR; mkdir libtool; cd libtool
+# libtool-2.4.7.tar.xz
+#wget -q https://ftp.gnu.org/gnu/libtool -O index
+
+#cd $CUR; mkdir make; cd make
+# make-4.4.tar.gz
+#wget -q https://ftp.gnu.org/gnu/make -O index
+
+#cd $CUR; mkdir mpc; cd mpc
+# mpc-1.3.0.tar.gz
+#wget -q https://ftp.gnu.org/gnu/mpc -O index
+
+#cd $CUR; mkdir mpfr; cd mpfr
+# mpfr-4.1.1.tar.xz
+#wget -q https://ftp.gnu.org/gnu/mpfr -O index
+
+#cd $CUR; mkdir ncurses; cd ncurses
+# ncurses-6.3.tar.gz
+#wget -q https://ftp.gnu.org/gnu/ncurses -O index
+
+#cd $CUR; mkdir readline; cd readline
+# readline-8.2-upstream_fix-1.patch
+# readline-8.2.tar.gz
+#wget -q https://ftp.gnu.org/gnu/readline -O index
+
+#cd $CUR; mkdir sed; cd sed
+# sed-4.9.tar.xz
+#wget -q https://ftp.gnu.org/gnu/sed -O index
+
+#cd $CUR; mkdir texinfo; cd texinfo
+# texinfo-7.0.1.tar.xz
+#wget -q https://ftp.gnu.org/gnu/texinfo -O index
+
+
+
+
+
+
+
+
+

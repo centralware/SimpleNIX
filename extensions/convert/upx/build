@@ -1,0 +1,341 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions; getCPU
+
+extload quiet git wget
+
+if [ ! -d ./src/upx/doc ]; then
+    mkdir -p src && cd src
+    git clone https://github.com/upx/upx.git
+    cd $CUR/src/upx
+    git checkout v4.2.4
+    git submodule update --init
+fi
+
+exit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+APP_NAME="7zip"
+APP_DESC="7zip"
+APP_HOST="https://sourceforge.net/projects/acpiclient/files/acpiclient/!VERSION!/${APP_FILE}"
+APP_DEPS=""
+
+BLD_EXTS="compiletc bc wget squashfs-tools openssl-dev coreutils"
+
+EE="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+EE="$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE$EE"
+
+showapp "$APP_DESC"
+
+sudo rm bin -fR
+sudo rm src -fR
+sudo rm dl/_patches -fR
+rm $CUR/*.log -f
+
+
+extract()
+{
+    echo "Extracting Files"
+    extload $BLD_EXTS
+    mkdir -p $CUR/dl/_patches
+
+    cat -n $0 > numbers; EXP="EXP"; FIND="#${EXP}ORT:"
+    cat numbers | grep "${FIND}" > finds
+
+    INDEX=$(cat finds | head -n 1 | awk '{print $1}'); INDEX=$(echo $INDEX)
+    tail -n +${INDEX} $0 > exports; rm finds -f; rm numbers -f
+
+    while read -r LINE
+    do
+        if [ "${LINE:0:8}" == "${FIND}" ]; then
+            OUTFILE="$(echo $LINE | awk -F: '{print $2}')"
+            echo "Extracting config file: [${OUTFILE}]"
+            [ -f $OUTFILE ] && rm $OUTFILE -f
+        else
+            [ ! "${OUTFILE}" == "" ] && echo $LINE >> $OUTFILE
+        fi
+    done < $CUR/exports
+
+    rm exports -f
+}
+function setuid()
+{
+    filename=$1; sudo chmod u+s $filename; sudo chmod g+s $filename
+}
+
+prepare()
+{
+    extload $BLD_EXTS
+#    if [ ! -f $CUR/.extracted ]; then
+#        extract
+        [ -d $CUR/_files ] && mkdir -p $CUR/dl/_patches && cp $CUR/_files/*.patch $CUR/dl/_patches/ -f
+#        touch $CUR/.extracted
+#    fi
+}
+
+get_version()
+{
+    extload quiet wget
+    if [ ! -f $CUR/versions.lst ]; then
+        mkdir -p $CUR/tmp
+        cd $CUR/tmp
+        [ ! -f index.html ] && wget -q --no-check-certificate https://sourceforge.net/projects/sevenzip/files/7-Zip/
+        cat index.html | grep "/files/7-Zip" | grep "href=" | grep "<th" > index
+        cat index | awk -F"/files/7-Zip/" '{print $2}' | awk -F"%" '{print $1}' | awk -F"/" '{print $1}' > $CUR/versions.lst
+    fi
+    cd $CUR
+    VERSION=$(head -n 1 $CUR/versions.lst)
+    [ -d $CUR/tmp ] && rm $CUR/tmp -fR
+}
+
+get_sources()
+{
+    mkdir -p $CUR/dl; cd $CUR/dl
+    if [ ! -f 7z${VERSION/./}-src.tar.xz ]; then
+        echo "${CYAN}Downloading Source ${GREEN}v${VERSION}${NORMAL}"
+        wget -q --no-check-certificate https://sourceforge.net/projects/sevenzip/files/7-Zip/${VERSION}/7z${VERSION/./}-src.tar.xz/download
+        mv download 7z${VERSION/./}-src.tar.xz
+    fi
+    if [ ! -d $CUR/src/7zip ]; then
+        echo "${CYAN}Extracting Source${NORMAL}"
+        mkdir -p $CUR/src/7zip
+        cd $CUR/src/7zip
+        tar -xf $CUR/dl/7z${VERSION/./}-src.tar.xz
+    fi
+}
+
+do_patch()
+{
+    echo "${CYAN}Patching${NORMAL}"
+    rm $CUR/_patches.log -f 2>/dev/null
+    cd $CUR/src/7zip
+    for PATCH in $CUR/dl/_patches/*
+    do
+#        echo "Patching $PATCH"
+        sudo patch -Np1 -i ${PATCH} >> $CUR/_patches.log 2>&1
+    done
+}
+
+do_compile()
+{
+    echo "${CYAN}Compiling${NORMAL}"
+
+    cd $CUR/src/7zip/CPP/7zip/Bundles/Alone2
+    mkdir -p b/g
+    [ -d $CUR/ext ] && rm $CUR/ext -fR
+
+    make -j$(nproc) -f ../../cmpl_gcc.mak DISABLE_RAR_COMPRESS=1 > $CUR/_compile.log 2>&1 || exit 1
+
+    mkdir -p $CUR/bin/usr/local/bin
+    cp $CUR/src/7zip/CPP/7zip/Bundles/Alone2/b/g/7zz $CUR/bin/usr/local/bin/7zz
+
+    mkdir -p $CUR/bin/usr/share/doc/7zip
+    cp $CUR/src/7zip/DOC/* -t $CUR/bin/usr/share/doc/7zip/ -R
+
+    cd $CUR/bin/usr/local/bin
+    ln -s 7zz 7z
+}
+
+do_package()
+{
+    echo "${CYAN}Packaging${NORMAL}"
+    cd $CUR/bin
+    tar -zcf ${APP_NAME}-${VERSION}-${CPU}.tar.gz *
+    #mv ${APP_NAME}-${VERSION}-${CPU}.tar.gz $REPO
+}
+
+################################
+ ###                        ###
+  ### COMMAND LINE OPTIONS ###
+ ###                        ###
+################################
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                clean) DO_CLEAN=1 ;;
+            esac ;;
+    esac
+done
+
+
+
+prepare
+[ "${VERSION}" == "" ] && echo "${CYAN}Getting Release Information${NORMAL}" && get_version
+[ ! "${DO_CLEAN}" == "" ] && rm $CUR/src/${APP_NAME}-${VERSION} -fR >/dev/null 2>&1
+#clear; showapp "${APP_DESC} v${VERSION}"
+get_sources
+do_patch
+do_compile
+do_package
+
+echo
+echo $(ticktock)
+
+echo "${GREEN}Done.${NORMAL}"
+
+exit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#EXPORT:./dl/_patches/armv7.patch
+--- a/C/SwapBytes.c
++++ b/C/SwapBytes.c
+@@ -331,12 +331,12 @@ ShufBytes_256(void *items8, const void *lim8, const void *mask128_ptr)
+ 
+ // compile message "NEON intrinsics not available with the soft-float ABI"
+ #elif defined(MY_CPU_ARM_OR_ARM64) || \
+-    (defined(__ARM_ARCH) && (__ARM_ARCH >= 7))
++    (defined(__ARM_ARCH) && (__ARM_ARCH >= 8))
+ // #elif defined(MY_CPU_ARM64)
+ 
+   #if defined(__clang__) && (__clang_major__ >= 8) \
+     || defined(__GNUC__) && (__GNUC__ >= 8)
+-    #if (defined(__ARM_ARCH) && (__ARM_ARCH >= 7)) \
++    #if (defined(__ARM_ARCH) && (__ARM_ARCH >= 8)) \
+         || defined(MY_CPU_ARM64)
+       #define USE_SWAP_128
+     #endif
+#EXPORT:./dl/_patches/7-zip-musl.patch
+--- a/C/CpuArch.c	2021-07-13 05:10:00.000000000 -0400
++++ b/C/CpuArch.c	2022-03-05 11:08:23.363390656 -0500
+@@ -421,8 +421,6 @@
+ 
+ #ifdef USE_HWCAP
+ 
+-#include <asm/hwcap.h>
+-
+   #define MY_HWCAP_CHECK_FUNC_2(name1, name2) \
+   BoolInt CPU_IsSupported_ ## name1() { return (getauxval(AT_HWCAP)  & (HWCAP_  ## name2)) ? 1 : 0; }
+ 
+diff -ru a/C/Threads.c b/C/Threads.c
+--- a/C/Threads.c	2021-12-21 08:00:00.000000000 -0500
++++ b/C/Threads.c	2022-03-05 11:07:47.203504536 -0500
+@@ -257,7 +257,7 @@
+       */
+ 
+       // ret2 =
+-      pthread_attr_setaffinity_np(&attr, sizeof(*cpuSet), cpuSet);
++      //pthread_attr_setaffinity_np(&attr, sizeof(*cpuSet), cpuSet);
+       // if (ret2) ret = ret2;
+       #endif
+     }
+@@ -267,14 +267,12 @@
+     if (!ret)
+     {
+       p->_created = 1;
+-      /*
+       if (cpuSet)
+       {
+         // ret2 =
+         pthread_setaffinity_np(p->_tid, sizeof(*cpuSet), cpuSet);
+         // if (ret2) ret = ret2;
+       }
+-      */
+     }
+   }
+   // ret2 =
+diff -ru a/C/Threads.h b/C/Threads.h
+--- a/C/Threads.h	2021-12-21 08:00:00.000000000 -0500
++++ b/C/Threads.h	2022-03-05 11:07:47.203504536 -0500
+@@ -19,6 +19,7 @@
+ #endif
+ 
+ #include <pthread.h>
++#include <sched.h>
+ 
+ #endif
+ 
+diff -ru a/CPP/Windows/SystemInfo.cpp b/CPP/Windows/SystemInfo.cpp
+--- a/CPP/Windows/SystemInfo.cpp	2021-11-06 04:19:39.000000000 -0400
++++ b/CPP/Windows/SystemInfo.cpp	2022-03-05 11:26:27.178812388 -0500
+@@ -36,9 +36,6 @@
+ #endif
+ */
+ 
+-#ifdef MY_CPU_ARM_OR_ARM64
+-#include <asm/hwcap.h>
+-#endif
+ #endif
+ 
+ #ifdef __linux__
+#EXPORT:./dl/_patches/7-zip-flags.patch
+--- a/CPP/7zip/7zip_gcc.mak
++++ b/CPP/7zip/7zip_gcc.mak
+@@ -24,7 +24,7 @@ PROGPATH_STATIC = $(O)/$(PROG)s
+ 
+ 
+ ifneq ($(CC), xlc)
+-CFLAGS_WARN_WALL = -Werror -Wall -Wextra
++CFLAGS_WARN_WALL = -Wall -Wextra
+ endif
+ 
+ # for object file
+@@ -32,7 +32,7 @@ endif
+ # -save-temps
+ CFLAGS_BASE_LIST = -c
+ # CFLAGS_BASE_LIST = -S
+-CFLAGS_BASE = -O2 $(CFLAGS_BASE_LIST) $(CFLAGS_WARN_WALL) $(CFLAGS_WARN) \
++CFLAGS_BASE = $(CFLAGS_BASE_LIST) $(CFLAGS_WARN_WALL) $(CFLAGS_WARN) \
+  -DNDEBUG -D_REENTRANT -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE \
+  -fPIC
+ 
+@@ -149,7 +149,7 @@ endif
+ 
+ 
+ 
+-CFLAGS = $(MY_ARCH_2) $(LOCAL_FLAGS) $(CFLAGS_BASE2) $(CFLAGS_BASE) $(FLAGS_FLTO) $(CC_SHARED) -o $@
++CFLAGS += $(MY_ARCH_2) $(LOCAL_FLAGS) $(CFLAGS_BASE2) $(CFLAGS_BASE) $(FLAGS_FLTO) $(CC_SHARED) -o $@
+ 
+ 
+ ifdef IS_MINGW
+@@ -208,7 +208,7 @@ $(O):
+ # -Wl,--print-gc-sections
+ 
+ ifneq ($(CC), $(CROSS_COMPILE)clang)
+-LFLAGS_STRIP = -s
++LFLAGS_STRIP =
+ endif
+ 
+ LFLAGS_ALL = $(LFLAGS_STRIP) $(MY_ARCH_2) $(LDFLAGS) $(FLAGS_FLTO) $(LD_arch) $(OBJS) $(MY_LIBS) $(LIB2)
+@@ -1285,7 +1285,7 @@ predef_cc:
+ 	$(CC) $(CFLAGS) -E $(SHOW_PREDEF)  ../../../../C/CpuArch.c > predef_cc_log
+ #	$(CC) $(CFLAGS) -E -dM -  < /dev/null
+ predef_cxx:
+-	$(CXX) $(CFLAGS) -E $(SHOW_PREDEF) ../../../Common/CrcReg.cpp  > predef_cxx_log
++	$(CXX) $(CXXFLAGS) -E $(SHOW_PREDEF) ../../../Common/CrcReg.cpp  > predef_cxx_log
+ 
+ predef: predef_cc predef_cxx
+ 

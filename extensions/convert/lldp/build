@@ -1,0 +1,58 @@
+#!/bin/sh
+CUR=$(pwd)
+clear
+
+EXTS="compiletc bc squashfs-tools"
+for EXT in $EXTS
+do
+    EXT=${EXT/.tcz/}
+    [ ! -f /etc/sysconfig/tcedir/optional/${EXT}.tcz ] && tce-load -w $EXT
+    [ ! -d /tmp/tcloop/${EXT} ] && tce-load -i $EXT
+done
+
+[ -d lldp_all ] && rm lldp_* -fR
+[ ! -f lldpd-1.0.18.tar.gz ] && wget https://media.luffy.cx/files/lldpd/lldpd-1.0.18.tar.gz
+[ ! -d lldpd-1.0.18 ] && tar -zxf lldpd-1.0.18.tar.gz
+
+cd lldpd-1.0.18; mkdir build; cd build
+[ ! -f ../.configured ] && ../configure --prefix=/usr/local --localstatedir=/var --sysconfdir=/usr/local/etc --with-embedded-libevent --without-snmp && touch ../.configured
+make -j 9
+make DESTDIR=/tmp/lldp install
+mv /tmp/lldp $CUR/lldp_all
+
+
+
+
+mkdir -p $CUR/lldp_ext/usr/local \
+         $CUR/lldp_doc/usr/local/share \
+         $CUR/lldp_dev/usr/local
+
+# DEV
+mv $CUR/lldp_all/usr/local/include $CUR/lldp_dev/usr/local/
+# DOC
+mv $CUR/lldp_all/usr/local/share/doc $CUR/lldp_doc/usr/local/share/
+mv $CUR/lldp_all/usr/local/share/man $CUR/lldp_doc/usr/local/share/
+# EXT
+mv $CUR/lldp_all/usr/local/* $CUR/lldp_ext/usr/local/
+
+# STRIP Binaries
+touch $CUR/.deps; rm $CUR/.deps -f
+cd $CUR/lldp_ext
+find -type f | magic | grep ELF | awk '{print $2}' > /tmp/bins
+for file in $(cat /tmp/bins)
+do
+    strip -s ${file}
+    ldd ${file} >> $CUR/.deps
+done
+rm /tmp/bins -f
+
+# Create TCZs
+cd $CUR
+mksquashfs lldp_ext lldp.tcz >/dev/null 2>&1
+mksquashfs lldp_doc lldp-doc.tcz >/dev/null 2>&1
+mksquashfs lldp_dev lldp-dev.tcz >/dev/null 2>&1
+
+cat > lldp.tcz.dep << "EOF"
+readline
+ncursesw
+EOF

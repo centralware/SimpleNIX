@@ -1,0 +1,251 @@
+#!/bin/sh
+clear; CUR=$(pwd)
+
+VER=4.8.31
+
+EXT="mc"
+EXTNAME="Midnight Commander"
+EXTDESC="Description"
+EXTTAGS=""
+EXTKERN=$(uname -r | awk -F- '{print $1}')
+EXTDATE=$(date +'%Y-%m-%d')
+EXTPLAT="x86"
+
+EXTAUTH="Author's Name"
+EXTSITE="Author's Website"
+EXTCOPY="GPL2"
+EXTRELS="2024-01-01"
+
+EXTDEPS="slang-shell gpm libssh2:1.2.8 glib2:2.32"
+DEVDEPS=""
+DOCDEPS=""
+LOCDEPS="${EXT}"
+SRCDEPS="compiletc automake autoconf glibc_add_lib glibc_base-dev gcc make libtool glib2-dev slang-dev ncursesw-dev gettext-dev libssh2-dev aspell-dev e2fsprogs-dev squashfs-tools"
+
+NIXLIST="dev doc ext loc src"
+NIXMAKE="doc ext loc src"
+
+FILE=${EXT}-${VER}
+HOST=http://ftp.midnight-commander.org
+
+
+
+## Get Processor/Thread Count ##
+res=$(cat /proc/cpuinfo | grep processor | awk '{print $1}'); THREADS=0
+for item in $res; do THREADS=$(expr $THREADS + 1); done
+
+
+## Increment Revision ##
+REV=0; if [ -f $CUR/.rev ]; then C=$(cat $CUR/.rev); REV=$(expr $C + 1); fi; echo $REV > $CUR/.rev
+
+
+## [TODO] ESCAPE
+ONBOOT=/etc/sysconfig/tcedir/optional
+TMPDIR=/tmp/tcloop
+
+###########################
+## Get a snapshot of extensions so we can undo everything
+###########################################
+
+CHKDEPS=" "
+for X in $SRCDEPS
+do
+    X=${X/.tcz/}; X=${X/.nix/}
+    [ ! -f $ONBOOT/${X}.tcz ] && tce-load -w $X
+    [ ! -d $TMPDIR/${X} ] && tce-load -i $X
+done
+
+for X in $EXTDEPS
+do
+    X=$(echo $X | awk -F: '{print $1}')
+    X=${X/.tcz/}; X=${X/.nix/}
+    [ ! -f $ONBOOT/${X}.tcz ] && tce-load -w $X
+    [ ! -d $TMPDIR/${X} ] && tce-load -i $X
+done
+
+
+
+if [ ! -f ${FILE}.tar.xz ]; then
+    echo "Downloading Source Package"
+    wget $HOST/${FILE}.tar.xz
+fi
+
+
+if [ ! -d ${FILE} ]; then
+    echo "Extracting Source Package"
+    tar -xf ${FILE}.tar.xz
+fi
+
+
+
+
+mkdir -p $CUR/tmp; sudo rm $CUR/tmp -fR; mkdir -p $CUR/tmp
+
+cd ${FILE}
+#CC="gcc -flto -fuse-linker-plugin -march=i486 -mtune=i686 -Os -pipe"; export CC
+#CXX="g++ -flto -fuse-linker-plugin -march=i486 -mtune=i686 -Os -pipe -fno-exceptions -fno-rtti"; export CXX
+./configure --prefix=/usr/local --localstatedir=/var --disable-static libexecdir=/usr/local/lib --with-subshell=no
+
+
+make -j4
+
+make DESTDIR=$CUR/tmp install
+
+
+
+
+
+### TEST BINARY DEPENDENCIES
+echo "Testing binaries"
+cd $CUR/tmp
+FILES=$(find . -type f -exec file {} + | grep ELF | awk -F: '{print $1}')
+touch $CUR/bintest.log; rm $CUR/bintest.log -f
+for TEST in $FILES
+do
+    echo $TEST >> $CUR/bintest.log
+    ldd $TEST >> $CUR/bintest.log 2>&1
+    echo >> $CUR/bintest.log
+done
+
+
+
+
+
+
+##########################################################################################################
+
+
+## Split contents into separate categories ##
+if [ ! -d $CUR/out ]; then
+    echo "Separating Extensions"
+    mkdir -p $CUR/out/loc/usr/local/share
+        mv $CUR/tmp/usr/local/share/locale $CUR/out/loc/usr/local/share/
+    mkdir -p $CUR/out/doc/usr/local/share
+        mv $CUR/tmp/usr/local/share/* $CUR/out/doc/usr/local/share/
+    mkdir -p $CUR/out/ext
+        mv $CUR/tmp/* $CUR/out/ext/
+    mkdir -p $CUR/out/src/usr/local/src
+        cd $CUR/out/src/usr/local/src
+        tar -xf $CUR/${EXT}-${VER}.tar.xz
+        cp $CUR/build ./
+fi
+
+
+
+## STRIP all binary files ##
+
+cd $CUR/out
+echo "Stripping Binary Files"
+FILES=$(find . -type f -exec file {} + | grep ELF | awk -F: '{print $1}')
+for FILE in $FILES
+do
+    strip $FILE
+done
+#find . -type f -exec file {} + | grep ELF
+
+
+
+## Create INIT File (if applicable) ##
+
+## Create START-UP Script (if applicable) ##
+mkdir -p $CUR/out/ext/usr/local/.installed
+
+
+
+
+
+## Create Squash-FS files for each category ##
+cd $CUR/out
+OUTPUT="${EXT}_${VER}_${EXTKERN}_${EXTPLAT}"
+for NIX in $NIXMAKE
+do
+    [ ! -f ../${OUTPUT}.${NIX}.nix ] && mksquashfs ${NIX} ../${OUTPUT}.${NIX}.nix
+done
+
+
+## Create INFO Files for each category ##
+cd $CUR
+for NIX in $NIXMAKE
+do
+    if [ -f ${OUTPUT}.${NIX}.nix ]; then
+        MD5=$(md5sum ${OUTPUT}.${NIX}.nix | awk '{print $1}')
+        FSZ=$(ls -la ${OUTPUT}.${NIX}.nix | awk '{print $5}')
+        echo "EXTENSION:    ${EXT}"                > ${OUTPUT}.${NIX}.nix.info
+        echo "TITLE:        ${EXTNAME}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo "DESCRIPTION:  ${EXTDESC}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo "PUBLISHED:    ${EXTDATE}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo ""                                   >> ${OUTPUT}.${NIX}.nix.info
+        echo "FILENAME:     ${OUTPUT}.${NIX}.nix" >> ${OUTPUT}.${NIX}.nix.info
+        echo "FILESIZE:     ${FSZ}"               >> ${OUTPUT}.${NIX}.nix.info
+        echo "VERSION:      ${VER}_R${REV}"       >> ${OUTPUT}.${NIX}.nix.info
+        echo "KERNEL:       ${EXTKERN}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo "PLATFORM:     ${EXTPLAT}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo ""                                   >> ${OUTPUT}.${NIX}.nix.info
+        echo "AUTHORS:      ${EXTAUTH}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo "WEBSITE:      ${EXTSITE}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo "COPYRIGHT:    ${EXTCOPY}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo "RELEASED:     ${EXTRELS}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo ""                                   >> ${OUTPUT}.${NIX}.nix.info
+        echo "MD5HASH:      ${MD5}"               >> ${OUTPUT}.${NIX}.nix.info
+        echo "TAGS:         ${EXTTAGS}"           >> ${OUTPUT}.${NIX}.nix.info
+        echo ""                                   >> ${OUTPUT}.${NIX}.nix.info
+
+        ## DEPENDENCIES
+        case $NIX in
+            dev) DEPS=$DEVDEPS ;;
+            doc) DEPS=$DOCDEPS ;;
+            ext) DEPS=$EXTDEPS ;;
+            loc) DEPS=$LOCDEPS ;;
+            src) DEPS=$SRCDEPS ;;
+        esac
+        for DEP in $DEPS
+        do
+            DEP=$(echo $DEP | awk -F# '{print $1}')
+            if [ ! "${DEP}" == "" ]; then
+                echo "DEPENDS:      ${DEP}"     >> ${OUTPUT}.${NIX}.nix.info
+            fi
+        done
+
+        ## FILE LISTING
+        cd $CUR/out/$NIX
+        find usr -not -type d > $CUR/${OUTPUT}.${NIX}.nix.list
+        cd $CUR
+
+        ##################
+        ## VERSION HISTORY [TODO]
+        #############################
+        ## Go through the REPO and grab all releases of this extension
+        ## and add HISTORY: [APP]_[VER] for every release we have
+        ################################################################
+
+
+    fi
+
+
+done
+
+
+
+
+
+
+###########################
+## Undo all extensions we've installed
+###########################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

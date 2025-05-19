@@ -1,0 +1,58 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-plasma
+pkgname=plasma-browser-integration
+pkgver=6.1.4
+pkgrel=0
+pkgdesc="Components necessary to integrate browsers into the Plasma Desktop"
+# armhf blocked by extra-cmake-modules
+# ppc64le, s390x, riscv64 and loongarch64 blocked by qt6-qtwebengine -> purpose
+arch="all !armhf !ppc64le !s390x !riscv64 !loongarch64"
+url="https://community.kde.org/Plasma/Browser_Integration"
+license="GPL-3.0-or-later"
+makedepends="
+	extra-cmake-modules
+	kconfig-dev
+	kdbusaddons-dev
+	kfilemetadata-dev
+	ki18n-dev
+	kio-dev
+	knotifications-dev
+	krunner-dev
+	kstatusnotifieritem-dev
+	plasma-activities-dev
+	plasma-workspace-dev>=$pkgver
+	purpose-dev
+	qt6-qtbase-dev
+	samurai
+	"
+
+case "$pkgver" in
+*.90*) _rel=unstable ;;
+*) _rel=stable ;;
+esac
+subpackages="$pkgname-lang"
+_repo_url="https://invent.kde.org/plasma/plasma-browser-integration.git"
+source="https://download.kde.org/stable/plasma/$pkgver/plasma-browser-integration-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+1a858ae35dbad310c7e9abf88af9d81aae07b907014d94b42dd6a40fabc9d4625615e997e244f834d70573f9bda453fcd6885202977a3be0b02104be9d7c7496  plasma-browser-integration-6.1.4.tar.xz
+"

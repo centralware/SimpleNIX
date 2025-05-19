@@ -1,0 +1,58 @@
+# Maintainer: Duncan Bellamy <dunk@denkimushi.com>
+pkgname=py3-rapidfuzz
+pkgver=3.9.6
+pkgrel=0
+pkgdesc="Rapid fuzzy string matching in Python using various string metrics"
+url="https://github.com/maxbachmann/RapidFuzz"
+arch="all"
+license="MIT"
+makedepends="
+	cmake
+	cython
+	py3-gpep517
+	py3-rapidfuzz-capi
+	py3-scikit-build
+	py3-setuptools
+	python3-dev
+	samurai
+	"
+checkdepends="
+	py3-hypothesis
+	py3-numpy
+	pytest
+	"
+subpackages="$pkgname-pyc"
+source="https://files.pythonhosted.org/packages/source/r/rapidfuzz/rapidfuzz-$pkgver.tar.gz"
+builddir="$srcdir/rapidfuzz-$pkgver"
+
+case "$CARCH" in
+x86*)
+	# float rounding
+	options="$options !check"
+	;;
+esac
+
+build() {
+	RAPIDFUZZ_BUILD_EXTENSION=1 \
+	CFLAGS="$CFLAGS -O2" \
+	CXXFLAGS="$CXXFLAGS -O2 -U_FORTIFY_SOURCE" \
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer \
+		.dist/rapidfuzz*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/rapidfuzz*.whl
+}
+
+sha512sums="
+015b947dcfd12ee48c7592ac2fc204833d8aa8e43110dab12dff7650e9f309a9a2017d2faf89b3c154cead23d9dc7fc1658f0ff5d2f8b5b3c73b2c97f021c7d9  rapidfuzz-3.9.6.tar.gz
+"

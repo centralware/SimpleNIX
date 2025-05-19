@@ -1,0 +1,47 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=libkomparediff2
+pkgver=24.05.2
+pkgrel=0
+# armhf blocked by extra-cmake-modules
+arch="all !armhf"
+pkgdesc="Library to compare files and strings"
+url="https://kde.org/applications/development"
+license="GPL-2.0-or-later AND LGPL-2.0-or-later"
+makedepends="
+	extra-cmake-modules
+	kcodecs5-dev
+	kconfig5-dev
+	kcoreaddons5-dev
+	ki18n5-dev
+	kio5-dev
+	kxmlgui5-dev
+	qt5-qtbase-dev
+	samurai
+	"
+subpackages="$pkgname-dev $pkgname-lang"
+_repo_url="https://invent.kde.org/sdk/libkomparediff2.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/libkomparediff2-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+54965f3f44c88bc3e7f0cbf7f5d3598ba05dc05d48a4d2b123d0e98eee1df1e82593828616e043ff60f35184d6a5df6121493447808ef630bb3bd6705c06d24e  libkomparediff2-24.05.2.tar.xz
+"

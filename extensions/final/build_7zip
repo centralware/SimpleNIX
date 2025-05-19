@@ -1,0 +1,332 @@
+#!/bin/sh
+
+  #############################################################################################
+
+    ######   ########     ######      ########   ##########   ######   ## ########   ##########
+  ##      ## ##      ## ##      ##    ##      ## ##         ##      ## ## ##      ## ##
+  ##         ##      ## ##            ##      ## ##         ##         ## ##      ## ##
+  ##         ##      ## ##            ##      ## ##         ##         ## ##      ## ##
+    ######   ########   ##         ## ########   ######     ##         ## ########   ######
+          ## ####       ##            ####       ##         ##         ## ##         ##
+          ## ##  ##     ##            ##  ##     ##         ##         ## ##         ##
+  ##      ## ##    ##   ##      ##    ##    ##   ##         ##      ## ## ##         ##
+    ######   ##      ##   ######      ##      ## ##########   ######   ## ##         ##########
+
+  #############################################################################################
+
+  EXT_NAME="7-Zip"
+  EXT_FILE="7zip"
+  EXT_DESC="7-Zip is a file archiver with a high compression ratio."
+  EXT_AUTH="Igor Pavlov"
+  EXT_VERS="24.09"
+  EXT_VERS=""
+  EXT_COPY="LGPL, BSD (LZFSE), COMMERCIAL (RARCOMP)"
+  EXT_SITE="https://www.7-zip.org"
+  EXT_PLAT="all"
+  EXT_KERN=""
+  EXT_DEPS=""
+
+  MAINTAIN="CentralWare"
+
+  SRC_DEPS="openssl-dev coreutils"
+
+  SRC_FILE="7zip.tar.xz"
+  SRC_PATH="VERSION"
+  SRC_PACK="7zip__VERSION.tar.gz"
+  SRC_SITE="https://sourceforge.net/projects/sevenzip/files/7-Zip/VERSION/7zSUBVER-src.tar.xz/download"
+
+ #################################################################################################
+# We need to locate our function script  #  These are shared functions for all extension builders #
+###################################################################################################
+CUR=$(pwd); clear; mkdir -p $CUR/.log                                                             #
+###################################################################################################
+FNC=""; [ -f ./functions ] && FNC="./" # Place "functions" in OUR directory for a custom copy     #
+[ "${FNC}" == "" ] && [ -f $CUR/.res/functions ] && FNC="$CUR/.res" # In case we built it in      #
+[ "${FNC}" == "" ] && [ -f ../functions ] && FNC="../"                                            #
+[ "${FNC}" == "" ] && [ -f /opt/functions ] && FNC="/opt"                                         #
+[ "${FNC}" == "" ] && [ -f /etc/init.d/functions ] && FNC="/etc/init.d"                           #
+[ "${FNC}" == "" ] && [ -f /usr/local/etc/functions ] && FNC="/usr/local/etc"                     #
+[ "${FNC}" == "" ] && echo -e '\033[1;31mERROR! \033[0;39mSupport file not found!' && exit 1      #
+. ${FNC}/functions  #  Now that we're found it, let's load it!                                    #
+###################################################################################################
+
+function go_about()
+{
+    clear                                            # Clear the screen
+    title                                            # Show our title page
+    screenPOS 21 1; echo "${ORANGE}${EXT_NAME}   ${YELLOW}${EXT_DESC}${NORMAL}"
+    screenPOS 23 1; echo "${ORANGE}$0 ${GREEN}[option] ${MAGENTA}[switches]${NORMAL}"
+    echo
+    echo "   ${GREEN}v${GREY}ersion              ${WHITE}Goes online and obtains the most RECENT stable version number${NORMAL}"
+    echo "   ${GREEN}d${GREY}ownload             ${WHITE}Goes online and downloads the source archive${NORMAL}"
+    echo "   ${GREEN}e${GREY}xtract              ${WHITE}Extracts the source archive (downloads if not available)${NORMAL}"
+    echo "   ${GREEN}c${GREY}ompile              ${WHITE}Compile the extension (download/extract if not available)${NORMAL}"
+    echo "   ${GREEN}p${GREY}ackage              ${WHITE}Package the compiled extension (does all of the above)${NORMAL}"
+    echo
+    echo "   ${MAGENTA}version=1.2.3        ${WHITE}Assign the version to use (uses RECENT if not supplied)${NORMAL}"
+    echo
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}p              ${WHITE}Compile and package the most recent version${NORMAL}"
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}p ${MAGENTA}ver=1.2.3    ${WHITE}Compile and package version 1.2.3${NORMAL}"
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}e ${MAGENTA}ver=2.3.4    ${WHITE}Download and Extract package version 2.3.4${NORMAL}"
+    exit 1
+}
+
+SUPPORTS=0; SRC_DEPS="wget compiletc squashfs-tools ${SRC_DEPS}"
+function go_support()
+{
+    [ "${SUPPORTS}" == "0" ] && extload "${SRC_DEPS}" && SUPPORTS=1
+}
+
+function go_version()
+{
+    extload quiet wget
+    if [ ! -f $CUR/versions.lst ]; then
+        mkdir -p $CUR/.tmp $CUR/dl; cd $CUR/.tmp
+        [ ! -f index.html ] && wget -q --no-check-certificate https://sourceforge.net/projects/sevenzip/files/7-Zip/
+        cat index.html | grep "/files/7-Zip" | grep "href=" | grep "<th" > index
+        cat index | awk -F"/files/7-Zip/" '{print $2}' | awk -F"%" '{print $1}' | awk -F"/" '{print $1}' > $CUR/dl/versions.lst
+    fi
+    cd $CUR
+    head -n 1 $CUR/dl/versions.lst
+    [ -d $CUR/.tmp ] && rm $CUR/.tmp -fR
+}
+
+function go_download()
+{
+    EXT_VERS=$1; [ "${VERS}" == "" ] && EXT_VERS=$(go_version)
+    VERS=$EXT_VERS
+    extload quiet wget
+    if [ ! -f $CUR/dl/${EXT_FILE}__${VERS}.tar.gz ]; then
+        mkdir -p $CUR/dl $CUR/.tmp; rm $CUR/.tmp -fR; mkdir -p $CUR/.tmp; cd $CUR/.tmp
+        echo -n "${CYAN}Downloading Source ${GREEN}v${VERS}${NORMAL} "
+        URL=${SRC_SITE//SUBVER/${VERS//./}}; URL=${URL//VERSION/${VERS}}
+        wget -q --no-check-certificate $URL || exit 1
+        echo -n "${ORANGE}Extracting ${NORMAL}"
+        tar -xf download || exit 1
+        rm download -f; echo -n "${YELLOW} Repackaging${NORMAL} "
+        tar -zcf $CUR/dl/${EXT_FILE}__${VERS}.tar.gz * || exit 1
+        cd ..; rm $CUR/.tmp -fR
+        echo
+    fi
+}
+
+function go_explode()
+{
+    echo "explode()"
+}
+
+function go_extract()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(version)
+    SRC_PACK=${SRC_PACK//VERSION/$VERS}
+
+    [ ! -f $CUR/dl/${EXT_FILE}__${VERS}.tar.gz ] && go_download $VERS
+
+    if [ ! -d $CUR/src/${VERS} ]; then
+        echo -n "${ORANGE}Extracting ${GREEN}$VERS${NORMAL} "
+        mkdir -p $CUR/src/$VERS; cd $CUR/src/$VERS
+        ERR=0; tar -zxf $CUR/dl/$SRC_PACK || ERR=1
+        if [ "${ERR}" == "1" ]; then
+            echo "${RED}ERROR! ${YELLOW}Problem extracting source package${NORMAL}"; exit 1
+        fi
+        echo
+    fi
+}
+
+
+function go_patches()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+    go_support
+    if [ -d $CUR/.res ]; then
+        cd $CUR/.res
+        echo -n "${CYAN}Patching ${NORMAL}${SPOS}"
+        ls -1 | grep ".patch" > /tmp/patch.lst
+        PATCHES=$(cat /tmp/patch.lst)
+        rm /tmp/patch.lst -f
+
+        cd $CUR/src/${VERS}
+        if [ ! -f ./.patched ]; then
+            for PATCH in $PATCHES
+            do
+                if [ ! "${PATCH}" == "" ]; then
+                    #echo -n "${MAGENTA}${PATCH}${NORMAL} "
+                    echo -n "."
+                    patch -Np1 -i $CUR/.res/${PATCH} >> $CUR/.log/cmp_patches.log 2>&1
+                fi
+            done
+            touch ./.patched
+        fi
+        echo -n "${RPOS}                          "
+        echo "${RPOS}"
+    fi
+}
+
+function go_configure()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+    go_support
+    cd $CUR/src/${VERS}
+    getCPU
+    if [ ! -f ./.configured ]; then
+        touch ./.configured
+    fi
+}
+
+function go_compile()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+    go_support
+    [ ! -d $CUR/src/$VERS ] && go_extract $VERS
+    getCPU
+
+    cd $CUR/src/$VERS
+    go_patches
+    go_configure
+
+    if [ ! -f $CUR/src/$VERS/.compiled ]; then
+        echo -n "${CYAN}Compiling${NORMAL}"
+        cd $CUR/src/${VERS}/CPP/7zip/Bundles/Alone2
+        mkdir -p b/g
+        ERR=0; make -j$(nproc) -f ../../cmpl_gcc.mak DISABLE_RAR_COMPRESS=1 > $CUR/.log/_compile.log 2>&1 || ERR=1
+        [ "${ERR}" == "1" ] && echo "${RED}ERROR! ${YELLOW}Phase 1 failed${NORMAL}" && tail -n 20 $CUR/.log/_compile.log && exit 1
+
+        TEMP=/tmp/builders/${EXT_FILE}/${VERS}; mkdir -p $TEMP/usr/local/bin $CUR/bin
+        ERR=0; cp $CUR/src/${VERS}/CPP/7zip/Bundles/Alone2/b/g/7zz $TEMP/usr/local/bin/7zz || ERR=1
+        [ "${ERR}" == "1" ] && echo "${RED}ERROR! ${YELLOW}Phase 2 failed${NORMAL}" && exit 1
+
+        mkdir -p $TEMP/usr/share/doc/7zip
+        cp $CUR/src/${VERS}/DOC/* -t $TEMP/usr/share/doc/7zip/ -R
+        cd $TEMP/usr/local/bin
+        ln -s 7zz 7z
+        ln -s 7zz 7zip
+        cd $TEMP
+        [ -f $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz ] && rm $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz -f
+        tar -zcf $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz *
+        cd $CUR
+        rm $TEMP -fR
+        touch $CUR/src/$VERS/.compiled
+        echo
+    fi
+}
+
+function go_test()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+    go_support
+    cd $CUR/src/${SRC_PATH}
+    if [ ! -f ./.tested ]; then
+        touch ./.tested
+    fi
+}
+
+function go_package()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(go_version)
+    go_support
+    SRC_PATH=${SRC_PATH//VERSION/$VERS}
+    [ ! -f $SRC_PATH/.compiled ] && go_compile $VERS
+    [ ! -f $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz ] && echo "${RED}ERROR! ${YELLOW}Binary Compile Failed${NORMAL}" && exit 1
+
+    mkdir -p $CUR/pkg $CUR/bin
+
+    ### BINS ###
+    echo -n "${CYAN}Packing Binary ${NORMAL}     "
+    TEMP=/tmp/builders/${EXT_FILE}/${VERS}; mkdir -p $TEMP; rm $TEMP -fR; mkdir -p $TEMP
+    cd $TEMP; tar -zxf $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz
+    rm $TEMP/usr/share -fR
+    cd $TEMP/../
+    echo -n "${GREEN}Stripping${NORMAL} "
+    stripper $TEMP
+    [ -f $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg ] && rm $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg -f
+    echo -n "${GREEN}Squashing${NORMAL} "
+    mksquashfs ${VERS} $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg >$CUR/.log/pkg_squash.log 2>&1 || exit 1
+    echo -n "${GREEN}Signing${NORMAL} "
+    cd $CUR/pkg; md5sum ${EXT_FILE}__${VERS}__${CPU}.pkg > ${EXT_FILE}__${VERS}__${CPU}.md5
+    echo
+
+
+    ### DOCS ###
+    echo -n "${CYAN}Packing Documents ${NORMAL}  "
+    TEMP=/tmp/builders/${EXT_FILE}/${VERS}; mkdir -p $TEMP; rm $TEMP -fR; mkdir -p $TEMP
+    cd $TEMP; tar -zxf $CUR/dl/${EXT_FILE}__${VERS}.bin.tgz
+    rm $TEMP/usr/local -fR
+    cd $TEMP/../
+    [ -f $CUR/pkg/${EXT_FILE}-doc__${VERS}__${CPU}.pkg ] && rm $CUR/pkg/${EXT_FILE}-doc__${VERS}__${CPU}.pkg -f
+    echo -n "${GREEN}Squashing${NORMAL} "
+    mksquashfs ${VERS} $CUR/pkg/${EXT_FILE}-doc__${VERS}__${CPU}.pkg >$CUR/.log/doc_squash.log 2>&1 || exit 1
+    echo -n "${GREEN}Signing${NORMAL} "
+    cd $CUR/pkg; md5sum ${EXT_FILE}-doc__${VERS}__${CPU}.pkg > ${EXT_FILE}-doc__${VERS}__${CPU}.md5
+    echo
+
+    # Create our INFO file #
+    cd $CUR/pkg
+    CHANGELOG=""; [ -f $CUR/.res/changelog__${VERS}.txt ] && CHANGELOG=$(cat $CUR/.res/changelog__${VERS}.txt);
+    [ "$CHANGELOG" == "" ] && [ -f $CUR/.res/changelog.txt ] && CHANGELOG=$(cat $CUR/.res/changelog.txt);
+
+    COMMENTS=""; [ -f $CUR/.res/comments__${VERS}.txt ] && COMMENTS=$(cat $CUR/.res/comments__${VERS}.txt);
+    [ "$COMMENTS" == "" ] && [ -f $CUR/.res/comments.txt ] && COMMENTS=$(cat $CUR/.res/comments.txt);
+
+    FILESIZE=$(bytes $(ls ${EXT_FILE}__${VERS}__${CPU}.pkg -la | awk '{print $5}'))
+    echo -e "title:        $EXT_FILE\ndescription:  $EXT_DESC\nversion:      $VERS" > build.info
+    echo -e "platform:     $CPU\nauthor:       $EXT_AUTH\nwebsite:      $EXT_SITE" >> build.info
+    echo -e "copyright:    $EXT_COPY\nplatforms:    $EXT_PLAT\nfilesize:     $FILESIZE" >> build.info
+    echo -e "maintainer:   $MAINTAIN\ncomments:     $COMMENTS\nchangelog:    $CHANGELOG" >> build.info
+    mv build.info ${EXT_FILE}__${VERS}__${CPU}.info
+
+    FILESIZE=$(bytes $(ls ${EXT_FILE}-doc__${VERS}__${CPU}.pkg -la | awk '{print $5}'))
+    echo -e "title:        $EXT_FILE\ndescription:  $EXT_DESC\nversion:      $VERS" > build.info
+    echo -e "platform:     $CPU\nauthor:       $EXT_AUTH\nwebsite:      $EXT_SITE" >> build.info
+    echo -e "copyright:    $EXT_COPY\nplatforms:    $EXT_PLAT\nfilesize:     $FILESIZE" >> build.info
+    echo -e "maintainer:   $MAINTAIN\ncomments:     $COMMENTS\nchangelog:    $CHANGELOG" >> build.info
+    mv build.info ${EXT_FILE}-doc__${VERS}__${CPU}.info
+
+    [ -d $CUR/bin ] && rm $CUR/bin -fR
+    [ -d $TEMP ] && rm $TEMP -fR
+
+    echo -n "Duration: " && ticktock
+}
+
+
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;                                # Tell builder WHAT VERSION we're going to use
+            esac
+            ;;
+        *)
+            case $i in
+                v*)  go_version;           exit 0 ;;                        # If VERSION isn't supplied, GET IT!
+                d*)  go_download $VERSION; exit 0 ;;                        # Download the source archive
+                e*)  go_extract $VERSION;  exit 0 ;;                        # Download/Extract the source archive
+                c*)  go_compile $VERSION;  exit 0 ;;                        # Download/Extract/Compile the source archive
+                p*)  go_package $VERSION;  exit 0 ;;                        # Download/Extract/Compile/Package the source archive
+            esac
+            ;;
+    esac
+done
+
+[ -d $CUR/.tmp ] && rm $CUR/.tmp -fR
+
+[ ! "${EXT_VERS}" == "" ] && go_package && exit 0
+
+go_about && exit 1
+
+#!# END OF SCRIPT #!#
+‹      í\{wÚH–Ï¿Ë9ù·>Y°è	sËØaÇÆ>€;=›Í¨…T2š€ÄJÂ<æÌÇ˜ızóIöV•$$¶ãÎ$ópPİ«ªÒÕÕï¾JEQ:Ó©-,¼EHlanæŒD$®'ÄÆî¥@<Û5=Á¬‰+Z$¬ÍÍÈš<{H±55}c+~Kš*=“TIQ$¥)©Íg¢¬(²øÄşÛ"ŒÌ àYàûÑ]|÷ÑÿIÛQàÏÚğ‡³ßŸ:ğÚüpâÂïnı÷~dÖ&—³éO—3ÓÖ,öªthF¤£©‚¤ÂÌAe	d¥-ÉmqvÄ]Q,ã?¡’´©pµ‚T­€ª ZW+È©U©$B	ôóózóƒ;¯w(ñŠÔ_;ákÓ³§$¨Yó9|vOÇ°&¦wIl\¸^H‚Èõ½òN…ÛdJØ¡P)•l×q@.İÌú}sŒïã(¹Mn@ÛmXæ¸Q«íŠI‘vAÅ†ªÒ¹–ÒÎÎÎfúé'$uW®6a'şÆ®áèğ´;z}vØ;==æo·ItnÄ‹Ê=/Rd`ë¬B|´=gÄâñèv^€€à}ğ`hœı~ïy	>ã¿ç%aóLóú<ğç…©Îgç½C˜#¥wXË÷Â®|×†ímÛŒÌåäôhè~ ™åàI¸Ry^Ú¹Ş·ogæí˜\ÍŞ½ƒüBVÈ_ieğñ9•c‚}è_œœì-{èiØ+b×÷~Àïiˆ¿áÈ½:ƒÓÀ!>8}rË·ÉÀıº9îÄ¥!#şckªÈ¨>¥fSRğÿ[´Gàÿ
+´ûÿµğ(ş+ ¶ÚşÉEüGµT«ÀCªV@ÕªTMÜAü.f`‡ĞïõÁYxœgš—\$øSGq¼¦î{‚]32-•éøOûû Uj±5©¯ÍùÁm„n‹õulGnÄqş8¶âØ!»šU«µÕR´FÁ.äÎˆ­@®b¾¢ˆòùEüÉÂatCÖe[(ŠYØÊCÙÔzffø^’[Æ<
+*Òé_½,³9•ÂŒ„LÔ[Lş®(×
+Áóñz¯PÌ1²]»Ñ¢	ŞFß‰gê›tz[h"^©ë È×#vùô†~~ÁnÇÙ€~5Ô
+|úÿƒ ş Î—/)'ĞVN—7—Ñ³7ûÕ>4+~E›FÇaÙUï'î«1ü¿‰pI"ëÚáülØûE 7A@ô|Á¤*$œwF¯ÓÎ/ÂÌ´ÿëùÿŠ*Éÿ_VäÆş‹öXü—´¥ÿ/ŠmQn+"ş£ZW«²R¦WêD>0½‚D¯€éUÆ"LÈtÂqÿ^/»¶ŒŞ Àú×aı‘ëĞåŞ:Â:®i‡6!m«ì}Bâb»ÌlB˜1
+âÒ*„Ì,ÈbjÂõAÅºå7Qbca“±J­&“]QväÕ bİ¹Ëàa•µŠ·EeÆ#Aı®ƒS:`¼éõ™â±ëYÓ…MàwVÙSwüŠq%ØçúµI¾“·Ò‰VÇBÖKçnµäª„Ö«ÕRª’DÍ×Ø÷§€Î»¾hÈ-©©¹„—ˆ'“JâWÓƒZw6nË•=‚ ¼à ˆéFª4©ú0Šÿk¹$QVñRŞÙ ¶©ã°Ÿ(§·˜NÑ,VA\ÎÅØÂ·¹Av@z··¤æ	«¹+œ-Qùä«°£ì“­’˜á‡}è:ıãn%¦¦1˜cNCÂÇùÌ>©TpFÇe',‡tb/Œö3ŞºvÛ	Iº—ƒGÁ‚,¼;u8}fVU-!ÅZl)ÓÒÔZÍÒšŠ¦4ïÖâôäõjœ’™#DõX‰õ8Õ¸­adwœ›ÚdëqªQØLïÂs‘¹Ğ»U«Õu6ó½:×Xİ÷®ØÜl…»Óv£s®íhY"×Ê*=Uø‹‚Â³›‚NKHô<¯ç(³Ï¥aYQãWè_ªû±è=ÔşW¿ı¯–Ğ±mÁ^Ìf·Bxºã2†ÿ<øG÷ïrÁ0èœ
+¡ûá™€ûâiyÿOR•æ“ÿ÷-Úcò¿“úELş¿İ¶´âÿ¡ZS+ˆÕª,W Ö+êş1½Ô+ zU*%˜ïğÑ=‚í“ĞûÏ&æ¢p2Re«;ŠIª Ÿ¸ŞâÂ9±\ÇµÖ8ŒÃÛƒåØÿkq÷Ûj. •÷úîpò2C7bãè´ÆVS–Ñ8¢Ğd…l6™SWMc†HÍ,jÔ4Ò/IÍúXsFÓ,1ÛPá%•q…C=„ft±gÜæì@!j6ŒKoaLğ^F%Ôå);kO‰o˜ñ™â‰4J_’Ozú¦ár&(x+JôèÇ?~.õŸ±1ü??×7Ìi@LûVˆï™`†‚$ 	8÷¯I€,q®(ø’Ú_<Ç]ø¯ÉŠ–ÏÿÊRS‘ğÿ[´¯‘ÿ¥Å¿V[iñõj‹âr¬X	€Â–´Ú±jAªZ¥ÍlıwÓ`'§I‚ğv6F\ó0& iMgêZQ˜dw³fÁí¨@Cı„}r;Ïëõ_>ëîÑ³Ì]ï¡ÌIÅƒŠ9z¨!]–gMä£´Ì™¬Z+&&šÅ¼DóÎ´D,£qò+¶Iª$9²†6Én¢i’Åbšó&Ùi~Äj‘šÆJ‘ì;ğ~ s¯¿6.ú:½~¹38E{“§Şé9£<ÓÂºSñŞS;±Ä5cYC3Bâ°=Çˆ€ÖŞ¸§ÏSßœ‚QŞÑ¤¸‚šP7ÍÍ3ÏŸÙHŸy,¬»µëä¤å:ÓĞ”F¦ØMóÑGáÈà37êÃ‹óó³Á¨{XÃcEM$?‰ï™IˆmÍZMi*NCvÖİ³IîMx€ÊK	bñÒõ³şÏÆaW?)úº}½L¸Jeoõ>²Ò´ú&ê]´QeTqƒX“5Ær]Kw›©½NR(H:yÊÇËß±´e[’³OˆÜÍ±V”vÂÈ;9æO‰ÄŸ‰Ë<N0@ûåÃuäNñIb/1zÅùœ§bv®ÊšÆººG	š|€KÖfºŒAo¨¸€·ï`Ÿ?"N¯Şj&á*sÃÖcW™ú¯¡3)n¤Ò»~qD©+âç¸9^şNò¢¢¥4*»£jÍ][Z?ç^ŠŸ3…—Hñ/ìˆnç„>ƒÜ¹üM"ÆIî1}r6Š˜ï1¥o1¥nqL\#â‡X›ñƒØ’]/cGsT£™Ûâ¦]/wTØúr+‹tvË1tS`
+ç¦E Ïùá#GíA÷¸7uÆQï„~éƒ.¢lYG$"ÈJß&/^€W]§GEì£ÊêU*•´É‡¡<F)Üv-;ÌÊô,‘*Ó™ P¦+†É|G¦Ã¦Â~ÑtL‰Ó+ÖÏpÙCãçÎ UL¾{Æèº§t‰U¼ñ†‹Ü;‹54ËÅ—]-rA‹^G•¥ŠrÑÃulx%|J±áá®¬™pÛ÷vÿÆ_»BC»‘¹3"PJ @)`pş[6ıäç¸+ş“5©‰ñ_CÔšJÁú™ˆn¥ª>Åß¢=:ÿ'AgĞøOImË­5õ_¦V@ÕŠ9æÌşÒœOé´wÚ~Æhƒ•6H5±„–5"^$ĞİumˆÈMTŸOM×Ûc%ˆDû[‹ÈZ[KNıĞ!€¦Ø·]ï²-œÇúÎÔ\¦éhVĞ¸$Q¹ÂR$‹!áb¤3Z©tæ"ÓEç¶,•Ùî¢*~Nœê¬Ñz_Ó°unUÃ‰Zi—~ıõ×R­VçIšn„#^Dî4¤ö«=o¹œ¿ıå¯ÌÑëÇ¼ívŸr³mú"¸ˆ,ãÈ¥=ådá/+ûËÿµï›Dn¨mEl	?hS§æŠË˜o Âi#\„hş<;l¨F„ƒÂGó½IISß»öáz”ğ™Š)éç]03oã ®Ìé‚À[á›l9×;w\†®´9Q-º20Pµ0:óükzDW ÛÔ_÷JIP¼ÒşœidŸLÎ+)İœp ]HKú«i]¥47ZËÏO3ŞLK‚4±¥4ZJ­ÖlØ¦e«›“½ù³Wó½y:s„XÂ·ÚJjú›Ê¡Ùê'Õ¤W<ÕZ,’fKı·a=
+¼öWÆØœZ³*É8­¶Ë]¦Á+
+«óoxéDøœMÿºLƒé$·'Ÿ9“¡O‰”‘“×şâœ/µ‹jË²¶ˆÏ+í÷Û¼-¿DR•m¹­Ğm~b¾èÈU.§qx°—£nVÈ¤
+™sĞWU…‚—˜QI*ˆ‰˜èißÎ¿¸1ûÈòrBgd¼~£wÎ×<?JóÀ¾'¼§…Ôqh?Ê#¸·ş§4õ?tö}“öXû/+™ı_r[l´Ñ#(Ø®V¨}énÒ$Œv)Q«Ò¦R]Ïsü,°oª×í~a½.w]m-!ÆPNÙ4åf­&6LGÕî€òÂé›jw)¯ßñò]UÒVğœá±¹¸¹âxÌıq·ô“›Á+xváIÆÚêYòÚÓd4ø¹óÒË¼çš]¾¹+5ÃY}rm™ó¼éùŞÇ¿|£ğ+Ó­÷ì«–à“½ÿA}FÁŸÚ¹·Bş.øßÕâş
+Ÿğÿ[´GïÿUà5ÿÍ¶¶ÛÆş3µbol\µ V«ô]\ˆ•à½ùA,ö†Æıøøğòİ…¯dÈñòw²[±I,E£{nÑn™+©ı„;É-'Çlo«„ş÷~îRg8~AAvôÎÉ	 ïÅã^2’’—ã®ò¯dğ×Íè¾#b_	ù¢”†A	Ö^»5} Ç)ÉÔñÌÉÆŒÌ{Öe›‡ôpfşÉƒ¾;¡ğ<'ß•÷éSöÔãş…¾<“Á+P+•Ìò—NöéÓ°7A–áŞš)WçL˜+üƒ¿$’Rx!¤Uyˆ‘ZÍò¯‘u;£‹A—JS‘—œK¯a)ÃÇG-ÿ°æÂ©W.œ]7ßóB_ 		x‹ÙcæïkäšÂw.8SóòKwu<¼İ‡ÿ¢†ø¯ÑL >ˆ"â¿$7ğÿÛ´B¹†~—–U›™ï‹õ™¹®*+Èğ·è‹µÇlWğpÔõt¯,ŸUê?–)¡&upô(ÉÿBùÇ²®#vßL-½ëG'ã¡ñ¦3èã‚ç>Ä™%ü6§Szt&-°¬cÍ±@‹ÔÇğ™Abv„g34V
+×âR8ã/œOsĞAÜ=éGtšár¥´ŸvÉx•EŞÊ²/]f¡áíN~°G$Rˆ4†g½ËËU)Ça÷àâ˜±ºİşhĞéèÁQï¤kœ»#ã 7î7TÚ}Òw-;˜àœ÷ô§7çşEÇÿÙ"œşİàÿ^üW5y‰ÿŠDñ_“şÿoÒ_w4¡[ô²¯"/{Ö7Ø^
+ş…o$ÎbğÒºñÆ&†>_ITÖ9	¶‡i»lí¾i+ ‘L7PÄ¯‚Ì#>–E’ÈtĞ­r£[Ã›—_ÒNî(ûNyÛbS ñˆì¥>`½şÛ†Y®ºvt…ºNÄfú{/“—`|ŸãÔx“m½Şaßò—'~w&J¼ĞéBæÂ+ÃbçÛ¸i/•V};å¡gÇWö}Ìø©Q§}‰”
+¢ÓE®ıİ)$H¤#dî}Ü•~fU  ƒ“äØä]–*ÛM7°ö:Çı³!zF ŸŞíSS7ì~î§}pfdnZ.ãå›2•’Ğš;É·eOıŞOêS{jOí©}İöÿ´næ N  

@@ -1,0 +1,139 @@
+#!/bin/sh
+
+APP="bash"
+
+
+
+clear; CUR=$(pwd); OLD=$CUR; . ../functions; cpuType
+SFX=${CPU}
+SXX=${SFX/x86_/x}
+
+extload quiet wget
+
+cd $CUR; mkdir -p $CUR/bin $CUR/src $CUR/pkg
+rm $CUR/bin -fR; mkdir -p $CUR/bin
+rm $CUR/pkg -fR; mkdir -p $CUR/pkg
+
+[ ! -f $CUR/versions.lst ] && touch $CUR/versions.lst
+
+title
+
+cd $CUR; echo "${CYAN}Package ${GREEN}${APP}${NORMAL}"
+#echo -n "${CYAN}Loading support extensions:${NORMAL}"
+extload bash compiletc coreutils ncursesw-dev perl5 readline-dev
+
+VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+if [ "${VERSION}" == "" ]; then
+    echo "  ${YELLOW}Obtaining Current Version${NORMAL}"; mkdir -p $CUR/tmp; sudo rm $CUR/tmp -fR; mkdir -p $CUR/tmp; cd $CUR/tmp
+    wget -q https://ftp.gnu.org/gnu/bash -O - | grep bash | grep href | grep ".tar.gz" | awk -F "<a " '{print $2}' > index
+    cat index | awk -F "</a" '{print $1}' | awk -F "\"" '{print $2}' > index2
+    cat index2 | grep -v doc | grep -v alpha | grep -v beta | grep -v rc | grep -v ".sig" > index3
+    cat index3 | awk -F "bash-" '{print $2}' | awk -F ".tar" '{print $1}' | grep -v "a" | grep -v "b" | grep -v "c" > index4
+    sort index4 > index5
+    J=0; N=0; V=0
+    for item in $(cat index5)
+    do
+        MAJ=$(echo $item | awk -F. '{print $1}'); MIN=$(echo $item | awk -F. '{print $2}'); REV=$(echo $item | awk -F. '{print $3}'); [ "${REV}" == "" ] && REV=0
+        if [ $MAJ -gt $J ]; then J=$MAJ; N=$MIN; V=$REV; fi; if [ $MIN -gt $N ]; then N=$MIN; V=$REV; fi; if [ $REV -gt $V ]; then V=$REV; fi
+    done
+    VERSION="${J}.${N}.${V}"
+    echo ":${APP}:${VERSION}" >> $CUR/versions.lst
+    cd $CUR; sudo rm tmp -fR
+fi
+
+sudo ldconfig >/dev/null 2>&1
+
+VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+#VERSION=5.2.21
+
+if [ ! -d $CUR/src/${APP}-${VERSION} ]; then
+    cd $CUR/src
+    echo "  ${YELLOW}Obtaining Source Code ${GREEN}${VERSION}${NORMAL}"
+    wget -q https://ftp.gnu.org/gnu/bash/bash-${VERSION}.tar.gz
+    tar -zxf bash-${VERSION}.tar.gz
+    rm bash-${VERSION}.tar.gz -f
+fi
+
+cd $CUR/src/${APP}-${VERSION}
+
+if [ ! -f ./.configured ]; then
+    echo "  ${YELLOW}Configuring source code${NORMAL}"
+    LIBS="-lncursesw" CC="gcc -flto -mtune=generic -Os -pipe" \
+        CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" \
+        ./configure --prefix=/usr/local --docdir=/usr/local/share/doc/bash --without-bash-malloc \
+        --with-installed-readline > ./.configured.log 2>&1  || exit 1
+    find . -name Makefile -type f -exec sed -i 's/-g -O2//g' {} \;
+    touch ./.configured
+fi
+
+if [ ! -f ./.compiled ]; then
+    echo "  ${YELLOW}Compiling source code${NORMAL}"
+    [ -f ./.compiled.log ] && make clean >/dev/null 2>&1
+    make -j$(nproc) > ./.compiled.log 2>&1 || exit 1
+    touch ./.compiled
+fi
+
+if [ ! -d $CUR/bin/${APP}-${VERSION} ]; then
+    echo "  ${YELLOW}Installing compiled code${NORMAL}"
+    make DESTDIR=$CUR/bin/bash-${VERSION} install > ./.installed.log 2>&1 || exit 1
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+cd $CUR/bin
+mv ${APP}-${VERSION} ${APP}
+mkdir -p ${APP}-doc/usr/local/share ${APP}-loc/usr/local/share ${APP}-dev/usr/local
+
+## DOC
+mv ${APP}/usr/local/share/man ${APP}-doc/usr/local/share/
+mv ${APP}/usr/local/share/doc ${APP}-doc/usr/local/share/
+
+## LOC
+mv ${APP}/usr/local/share/locale ${APP}-loc/usr/local/share/
+
+## DEV
+mv ${APP}/usr/local/include ${APP}-dev/usr/local/
+
+echo "${CYAN}  Stripping${NORMAL}"
+stripper $CUR/bin
+
+echo "${CYAN}  Packaging${NORMAL}"
+mksquashfs ${APP} $CUR/pkg/${APP}.tcz >/dev/null 2>&1
+mksquashfs ${APP}-dev $CUR/pkg/${APP}-dev.tcz >/dev/null 2>&1
+mksquashfs ${APP}-doc $CUR/pkg/${APP}-doc.tcz >/dev/null 2>&1
+mksquashfs ${APP}-loc $CUR/pkg/${APP}-loc.tcz >/dev/null 2>&1
+
+cd $CUR/bin/${APP} && find . -type f > $CUR/pkg/${APP}.tcz.list && nodot $CUR/pkg/${APP}.tcz.list
+cd $CUR/bin/${APP}-dev && find . -type f > $CUR/pkg/${APP}-dev.tcz.list && nodot $CUR/pkg/${APP}-dev.tcz.list
+cd $CUR/bin/${APP}-doc && find . -type f > $CUR/pkg/${APP}-doc.tcz.list && nodot $CUR/pkg/${APP}-doc.tcz.list
+cd $CUR/bin/${APP}-loc && find . -type f > $CUR/pkg/${APP}-loc.tcz.list && nodot $CUR/pkg/${APP}-loc.tcz.list
+
+cd $CUR/pkg
+md5sum ${APP}.tcz > ${APP}.tcz.md5.txt
+md5sum ${APP}-dev.tcz > ${APP}-dev.tcz.md5.txt
+md5sum ${APP}-doc.tcz > ${APP}-doc.tcz.md5.txt
+md5sum ${APP}-loc.tcz > ${APP}-loc.tcz.md5.txt
+
+
+
+
+
+
+
+
+
+
+
+

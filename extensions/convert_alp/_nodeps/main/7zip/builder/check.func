@@ -1,0 +1,8 @@
+check() {
+~!~!~# no proper test suite so just try to compress and decompress some files
+~!~!~mkdir tmp
+~!~!~CPP/7zip/Bundles/Alone2/b/g/7zz a tmp/7z${_EXT_VERS}-src.7z Asm C CPP DOC
+~!~!~cd tmp
+~!~!~../CPP/7zip/Bundles/Alone2/b/g/7zz x 7z${_EXT_VERS}-src.7z
+~!~!~# TODO: check if extracted result is identical
+}

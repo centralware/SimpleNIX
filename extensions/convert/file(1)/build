@@ -1,0 +1,127 @@
+#!/bin/sh
+clear; CUR=$(pwd); OLD=$CUR; . /etc/init.d/tc-functions; . ../functions;       ##### TCL
+TITLE="
+${CYAN}        ######
+${CYAN}       ##    ## ####
+${CYAN}       ##        ##  ##     ##
+${CYAN}        ######   ##  ###   ### ########
+${CYAN}             ##  ##  #### #### ##     ## ##
+${CYAN}       ##    ##  ##  ## ### ## ##     ## ##       ########
+${CYAN}        ######   ##  ##     ## ########  ##       ##
+${CYAN}                #### ##     ## ##        ##       ##             ${WHITE}#####
+${CYAN}                     ##     ## ##        ##       ######        ${WHITE}##   ##
+${CYAN}                   #           ##        ##       ##            ${WHITE}# ${BLUE}0 0 ${WHITE}#
+${CYAN}  ######          ###                    ######## ##           ${WHITE}#   ${YELLOW}V   ${WHITE}#
+${CYAN}    ##             #                              ########    ${WHITE}##       ##
+${CYAN}    ##         ###    ### ####   ###    ###  ##### #####     ${WHITE}#           #
+${CYAN}    ##        #  ##    ###    ##  ##     ##    ##   ##      ${WHITE}#             #
+${CYAN}    ##       #   ##    ##     ##  ##     ##      ###        ${WHITE}#  #       #  #
+${CYAN}    ##          ###    ##     ##  ##     ##      ###       ${YELLOW}@@${WHITE}##         ##${YELLOW}@@
+${CYAN}    ##       # ###     ##     ##  ##     ##     ## ##    ${YELLOW}@@@@@@${WHITE}#       #${YELLOW}@@@@@@
+${CYAN}    ##      ## ### #   ##     ##  ###   ###    ##   ##   ${YELLOW}@@@@@@@${WHITE}# ${RED}CDC ${WHITE}#${YELLOW}@@@@@@@
+${CYAN}  ############  ###   ####   ####   #### ### ##### #####   ${YELLOW}@@@@@${WHITE} ##### ${YELLOW}@@@@@"
+#------------------------------------------------------------------------------#
+# This file is a part of a project which contains pieces from other projects   #
+# belonging to potentially hundreds of individuals globally in an effort to    #
+# bring together some of the best computing materials the world has to offer   #
+# under a single roof with an automated core allowing a tailor-made experience #
+# like no other. Some of these pieces may have originated from individuals,    #
+# while others may have come from public distributions such as Alpine, Apache, #
+# CentOS, Debian, Fedora, SlackWare, TinyCore, Zorin, etc. just to name a few. #
+# This project will be ever changing throughout the entire Version 0.x.x life- #
+# cycle and should NOT be considered a complete and/or functional system.      #
+#------------------------------------------------------------------------------#
+echo "${TITLE}${NORMAL}"; echo; SFX=$(GetProcessorType)
+SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtClean
+ExtLoad wget git; echo
+
+cd $CUR; mkdir -p $CUR/bin $CUR/src
+[ ! -f $CUR/versions.lst ] && touch $CUR/versions.lst
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##########
+## file ##
+##########
+#cd $CUR; mkdir file; cd file
+# file-5.43.tar.gz
+cd $CUR; echo "${CYAN}Package ${GREEN}file${NORMAL}"
+echo -n "${CYAN}Loading support extensions:${NORMAL}"
+ExtLoad autoconf autoheader automake compiletc git libzstd libtool m4
+
+[ -f versions.lst ] && VERSION=$(cat versions.lst | grep ":file:" | awk -F: '{print $3}')
+if [ "${VERSION}" == "" ]; then
+    cd $CUR; mkdir tmp; cd tmp
+    [ ! -f index ] && wget -q ftp://ftp.astron.com/pub/file/ -O index
+    cat index | grep "href=" | grep pub | grep bytes | awk -F "href=" '{print $2}' | awk -F ">" '{print $2}' | awk -F "<" '{print $1}' | grep -v ".asc" | grep file > unsorted
+    sort unsorted > sorted
+    for F in $(cat sorted)
+    do
+        [ ! "${F}" == "" ] && VERSION=$(echo $F | awk -F- '{print $2}' | awk -F ".tar" '{print $1}')
+    done
+    echo ":file:${VERSION}" >> $CUR/versions.lst
+    sudo rm $CUR/tmp -fR
+fi
+
+cd $CUR; VERSION=$(cat versions.lst | grep ":file:" | awk -F: '{print $3}')
+[ "${VERSION}" == "" ] && echo "NO VERSION" && exit 1
+if [ ! -d $CUR/src/file-${VERSION} ]; then
+    cd $CUR/src; echo "  Downloading source code [${VERSION}]"
+    wget -q ftp://ftp.astron.com/pub/file/file-${VERSION}.tar.gz
+    tar -zxf file-${VERSION}.tar.gz
+    rm file-${VERSION}.tar.gz -f
+fi
+
+cd $CUR/src/file-${VERSION}
+[ ! -d build ] && mkdir build
+cd build
+
+if [ ! -f ./.configured ]; then
+    echo "  ${YELLOW}Configuring file${NORMAL}"
+    ../configure --disable-bzlib --disable-libseccomp --disable-xzlib --disable-zlib >./.configured.log 2>&1 || exit 1
+    touch ./.configured
+fi
+
+if [ ! -f ./.compiled ]; then
+    echo "  ${YELLOW}Compiling file${NORMAL}"
+    make -j$(nproc) >./.compiled.log 2>&1 || exit 1
+    touch ./.compiled
+fi
+
+cd ..
+
+if [ ! -f ./.reconfigured ]; then
+    echo "  ${YELLOW}Reconfiguring file${NORMAL}"
+    ./configure --prefix=/usr --host=$TC_TGT --build=$(./config.guess) >./.reconfigured.log 2>&1 || exit 1
+    touch ./.reconfigured
+fi
+
+if [ ! -f ./.recompiled ]; then
+    echo "  ${YELLOW}Recompiling file${NORMAL}"
+    make -j$(nproc) FILE_COMPILE=$(pwd)/build/src/file >./.recompiled.log 2>&1 || exit 1
+    touch ./.recompiled
+fi
+
+if [ ! -d $CUR/bin/file-${VERSION} ]; then
+    echo "  ${YELLOW}Installing file${NORMAL}"
+    make DESTDIR=$CUR/bin/file-${VERSION} install >./.installed.log 2>&1 || exit 1
+    rm -v $CUR/bin/file-${VERSION}/usr/lib/libmagic.la
+fi

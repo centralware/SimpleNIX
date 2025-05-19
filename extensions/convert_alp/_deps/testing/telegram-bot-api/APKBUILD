@@ -1,0 +1,41 @@
+# Maintainer: Maria Lisina <sekoohaka.sarisan@gmail.com>
+pkgname=telegram-bot-api
+pkgver=7.9
+pkgrel=0
+# they don't tag releases
+_gitrev=06e2e31aeaa9bdfc2b3e11bb3e4761241373b7cd
+_td_gitrev=8d08b34e22a08e58db8341839c4e18ee06c516c5
+pkgdesc="Telegram Bot API server"
+url="https://core.telegram.org/bots"
+arch="all !s390x" # td fails to build on big-endian
+license="BSL-1.0"
+makedepends="cmake gperf linux-headers openssl-dev samurai zlib-dev"
+source="$pkgname-$_gitrev.tar.gz::https://github.com/tdlib/telegram-bot-api/archive/$_gitrev.tar.gz
+	td-$_td_gitrev.tar.gz::https://github.com/tdlib/td/archive/$_td_gitrev.tar.gz
+	"
+builddir="$srcdir/$pkgname-$_gitrev"
+options="!check" # package doesn't have a testsuite
+
+prepare() {
+	default_prepare
+
+	rm -fr "$builddir/td"
+	ln -sf "$srcdir/td-$_td_gitrev" "$builddir/td"
+}
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=MinSizeRel \
+		-DCMAKE_INSTALL_PREFIX=/usr
+
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+966e7bffadeafb4cbf5a89041928dbe15e262bc4f1f70f864243f1cf5dd65172fbbfc4ee88c49685ebfae5da6ad263c2e375683cd3a33f3286618112aa3ac0a6  telegram-bot-api-06e2e31aeaa9bdfc2b3e11bb3e4761241373b7cd.tar.gz
+c24141e47b5547e324973ca8499a9dee965c822e1d45348cbf1c3b80db520857e61dfa5e047af9b28605e38beb6e0e922ba3ec0808f87e24439159c64951ec54  td-8d08b34e22a08e58db8341839c4e18ee06c516c5.tar.gz
+"

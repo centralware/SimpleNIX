@@ -1,0 +1,96 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=mailcap
+pkgver=2.1.54
+pkgrel=0
+pkgdesc="Helper application and MIME type associations for file types"
+url="https://pagure.io/mailcap"
+arch="noarch"
+license="Public Domain"
+source="https://releases.pagure.org/mailcap/mailcap-$pkgver.tar.xz"
+pkgfile="${pkgname}-${pkgver}.tar.xz"
+pkgdir="${pkgname}-${pkgver}"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    echo "Getting current version information..."
+    [ "${pkgver}" == "" ] && get_version
+
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -xf ${pkgfile}
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_depends()
+{
+    echo "Loading compilation dependencies"
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget
+
+src_build
+
+
+
+
+
+
+
+# Maintainer: Natanael Copa <ncopa@alpinelinux.org>
+
+package() {
+	make install DESTDIR="$pkgdir"
+	rm -Rf "$pkgdir"/etc/nginx
+}
+
+sha512sums="
+a80caba013b644111f163d8ef74fe801d7266cf4edd38ca723f98fb12a103a24e84a8fca0c569beb05ca0f407437ed1282306b30303c38327b744194c6fe80b2  mailcap-2.1.54.tar.xz
+"

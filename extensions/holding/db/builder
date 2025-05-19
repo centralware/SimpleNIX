@@ -1,0 +1,138 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=db
+pkgver=5.3.28
+pkgrel=6
+pkgdesc="The Berkeley DB embedded database system"
+url="https://www.oracle.com/technology/software/products/berkeley-db/index.html"
+arch="all"
+license="BSD-3-Clause"
+source="https://download.oracle.com/berkeley-db/db-$pkgver.tar.gz"
+patches="atomic.patch"
+pkgfile="${pkgname}-${pkgver}.tar.gz"
+pkgdir="${pkgname}-${pkgver}"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    echo "Getting current version information..."
+    [ "${pkgver}" == "" ] && get_version
+
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -zxf ${pkgfile}
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_patches()
+{
+    cd $CUR/src/${pkgdir}
+    for PATCH in $patches
+    do
+        patch -Np1 -i $CUR/_patches/$PATCH
+    done
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    src_patches
+
+    cd $CUR/src/${pkgdir}
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring...${NORMAL}"
+        CPU=$(GetProcessorType)
+        cd build_unix
+        CFLAGS="$CFLAGS -fpermissive" ../dist/configure \
+            --prefix=/usr/local \
+            --mandir=/usr/local/share/man \
+            --enable-compat185 \
+            --enable-shared \
+            --enable-cxx \
+            --disable-static > \
+            $CUR/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+
+    echo "${CYAN}Preparing...${NORMAL}"
+#    make -C build_unix DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+    make DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+
+    mkdir -p $CUR/ext/usr/local/share/doc
+    mv $CUR/ext/usr/local/docs $CUR/ext/usr/local/share/doc/$pkgname
+
+    cd $CUR/src/${pkgdir}
+    install -Dm644 LICENSE \
+        $CUR/ext/usr/local/share/licenses/$pkgname/LICENSE
+
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget
+
+src_build
+
+
+
+
+
+
+exit
+
+
+build() {
+}
+
+package() {
+}
+
+utils() {
+	pkgdesc="Utils for The Berkeley DB embedded database system"
+	replaces="db"
+	mkdir -p "$subpkgdir"/usr/
+	mv "$pkgdir"/usr/bin "$subpkgdir"/usr/
+}
+
+cxx() {
+	pkgdesc="C++ binding for libdb"
+	mkdir -p "$subpkgdir"/usr/lib
+	mv "$pkgdir"/usr/lib/libdb_cxx*.so "$subpkgdir"/usr/lib/
+}

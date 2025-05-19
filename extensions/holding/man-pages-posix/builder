@@ -1,0 +1,85 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=man-pages-posix
+pkgver=2017a
+_majorver=${pkgver%*[a-z]}
+_minorver=${pkgver##${_majorver}}
+pkgrel=0
+pkgdesc="POSIX.1-$_majorver manual pages"
+url="https://mirrors.edge.kernel.org/pub/linux/docs/man-pages/man-pages-posix/"
+arch="all"
+license="custom"
+builddir="man-pages-posix-$_majorver"
+pkgfile="${pkgname}-${pkgver}.tar.xz"
+pkgdir="${pkgname}-${pkgver}"
+source="https://cdn.kernel.org/pub/linux/docs/man-pages/man-pages-posix/man-pages-posix-$_majorver-$_minorver.tar.xz -O $pkgfile"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -xf ${pkgfile}
+        mv $builddir $pkgdir
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+
+    CPU=$(GetProcessorType)
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    for sect in 0 1 3
+    do
+        sed -i "/^\.so /s/man${sect}p/man$sect/" man${sect}p/*
+        mkdir -p $CUR/ext/usr/local/share/man/man${sect}
+        cp man${sect}p/* $CUR/ext/usr/local/share/man/man$sect/
+    done
+
+    install -Dm644 POSIX-COPYRIGHT \
+        $CUR/ext/usr/local/share/licenses/$pkgname/COPYING
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget
+
+src_build
+

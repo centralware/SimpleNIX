@@ -1,0 +1,56 @@
+# Contributor: Nicolas Lorin <androw95220@gmail.com>
+# Maintainer: Natanael Copa <ncopa@alpinelinux.org>
+pkgname=scons
+pkgver=4.8.0
+pkgrel=0
+pkgdesc="Software construction system"
+url="https://scons.org/"
+arch="noarch"
+license="MIT"
+depends="python3"
+makedepends="py3-gpep517 py3-setuptools py3-wheel"
+checkdepends="xz"
+subpackages="$pkgname-pyc $pkgname-doc"
+# fetching both sources, because only github tarball has tests
+# and only sourceforge tarball has prebuilt manpages
+# building the scons manpages requires working scons install...
+source="https://github.com/SCons/scons/archive/$pkgver/scons-$pkgver.tar.gz
+	https://downloads.sourceforge.net/project/scons/scons/$pkgver/SCons-$pkgver.tar.gz
+	"
+
+# tests need py3-psutil from community
+options="!check"
+
+prepare() {
+	default_prepare
+
+	# remove failing test
+	case $CARCH in
+	ppc64le) rm test/builderrors.py ;;
+	esac
+}
+
+build() {
+	gpep517 build-wheel --wheel-dir .dist --output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 runtest.py -a
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" .dist/*.whl
+
+	# find and remove directories containing docbook files
+	find "$pkgdir" -name 'docbook' -type d -exec rm -rf {} +
+
+	install -Dm644 scons.1 scons-time.1 sconsign.1 \
+		-t "$pkgdir"/usr/share/man/man1/
+}
+
+sha512sums="
+056bc7f5308e73e202a96ce6e56efee4df278cd77455dc42278d63470ff2ea05163124c2f971a87416766d098103f85cfc0a0340bd9d0aa9209d200890197af9  scons-4.8.0.tar.gz
+6f1ab01b25752f1f43a1796fb68fb0508105b372cf082a57477af4685399f8b83372466d65070d5c928d81c9fd4bdf1e8ba357c72537f32c50f77121f52415fb  SCons-4.8.0.tar.gz
+"

@@ -1,0 +1,127 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+# Contributor: Sheila Aman <sheila@vulpine.house>
+# Contributor: Natanael Copa <ncopa@alpinelinux.org>
+# Maintainer: Celeste <cielesti@protonmail.com>
+pkgname=ack
+pkgver=3.7.0
+pkgrel=1
+pkgdesc="Perl-powered replacement for grep"
+pkgfile="ack-v${pkgver}.tar.gz"
+pkgdir="$pkgname-v$pkgver"
+url="https://beyondgrep.com/"
+arch="all"
+license="Artistic-2.0"
+depends="perl perl-file-next"
+includes="perl-file-next"
+checkdepends="bash"
+source="https://cpan.metacpan.org/authors/id/P/PE/PETDANCE/ack-v${pkgver}.tar.gz"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+###################################
+##### REBUILD PERL5 WITH IO:PTY/TTY
+################################################################################
+
+get_source()
+{
+    SRC="$CUR/src"
+    PTH="$SRC/${pkgdir}"
+    RAW="$SRC/raw"
+
+    [ ! -d $SRC ] && mkdir -p $SRC $RAW
+
+    cd $SRC
+    if [ ! -f $pkgfile ]; then
+        echo "${WHITE}Downloading ${GREEN}${pkgfile} ${WHITE}from website${NORMAL}"
+        wget -q $source || exit 1
+    fi
+    if [ ! -d $PTH ]; then
+        tar -zxf $pkgfile || exit 1
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_depends()
+{
+    echo "Loading compilation dependencies"
+}
+
+copy2fs()
+{
+    for DIR in $includes
+    do
+        if [ ! -d $CUR/../${DIR}/ext ]; then
+            if [ ! -d $CUR/../${DIR} ]; then
+                echo "${RED}ERROR! ${YELLOW}Include extension missing! [${DIR}]${NORMAL}"
+                exit 1
+            fi
+        fi
+        if [ ! -f $CUR/../${DIR}/builder ]; then
+            echo "${RED}ERROR! ${YELLOW}Include builder missing! [${DIR}]${NORMAL}"
+            exit 1
+        else
+            echo "${WHITE}Passing control to ${GREEN}${DIR}${NORMAL}"
+            sleep 1
+            cd $CUR/../${DIR}
+            ./builder
+        fi
+        if [ ! -d $CUR/../${DIR}/ext ]; then
+            echo "${RED}Dependency build incomplete for ${YELLOW}${DIR}${NORMAL}"
+            exit 1
+        fi
+        cd $CUR/../${DIR}/ext
+        sudo cp * / -fR
+    done
+}
+
+src_build()
+{
+    get_source
+    copy2fs
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+
+    PERL_MM_USE_DEFAULT=1 perl -I. Makefile.PL \
+        INSTALLDIRS=vendor \
+        NO_PACKLIST=1 \
+        NO_PERLLOCAL=1
+
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+    echo "${CYAN}Testing...  (This will take a while!)${NORMAL}"
+    sudo make -j$(nproc) test > $CUR/_testing.log 2>&1 || exit 1
+    echo "${CYAN}Preparing...${NORMAL}"
+    make DESTDIR="$CUR/ext" install > $CUR/_install.log 2>&1 || exit 1
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget perl5 bash
+
+src_build

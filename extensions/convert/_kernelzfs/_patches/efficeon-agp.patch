@@ -1,0 +1,40 @@
+diff --git a/drivers/char/agp/efficeon-agp.c b/drivers/char/agp/efficeon-agp.c
+index f28d42319..61c4cd2a2 100644
+--- a/drivers/char/agp/efficeon-agp.c
++++ b/drivers/char/agp/efficeon-agp.c
+@@ -235,6 +235,7 @@ static int efficeon_create_gatt_table(struct agp_bridge_data *bridge)
+ 
+ static int efficeon_insert_memory(struct agp_memory * mem, off_t pg_start, int type)
+ {
++	struct agp_bridge_data *bridge = mem->bridge;
+ 	int i, count = mem->page_count, num_entries;
+ 	unsigned int *page, *last_page;
+ 	const int clflush_chunk = ((cpuid_ebx(1) >> 8) & 0xff) << 3;
+@@ -245,7 +246,8 @@ static int efficeon_insert_memory(struct agp_memory * mem, off_t pg_start, int t
+ 	num_entries = A_SIZE_LVL2(agp_bridge->current_size)->num_entries;
+ 	if ((pg_start + mem->page_count) > num_entries)
+ 		return -EINVAL;
+-	if (type != 0 || mem->type != 0)
++	if (!bridge || type != mem->type ||
++			bridge->driver->agp_type_to_mask_type(bridge,type))
+ 		return -EINVAL;
+ 
+ 	if (!mem->is_flushed) {
+@@ -284,6 +286,7 @@ static int efficeon_insert_memory(struct agp_memory * mem, off_t pg_start, int t
+ 
+ static int efficeon_remove_memory(struct agp_memory * mem, off_t pg_start, int type)
+ {
++	struct agp_bridge_data *bridge = mem->bridge;
+ 	int i, count = mem->page_count, num_entries;
+ 
+ 	printk(KERN_DEBUG PFX "efficeon_remove_memory(%lx, %d)\n", pg_start, count);
+@@ -292,7 +295,8 @@ static int efficeon_remove_memory(struct agp_memory * mem, off_t pg_start, int t
+ 
+ 	if ((pg_start + mem->page_count) > num_entries)
+ 		return -EINVAL;
+-	if (type != 0 || mem->type != 0)
++	if (!bridge || type != mem->type ||
++			bridge->driver->agp_type_to_mask_type(bridge,type))
+ 		return -EINVAL;
+ 
+ 	for (i = 0; i < count; i++) {

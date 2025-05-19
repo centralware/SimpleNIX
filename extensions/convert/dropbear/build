@@ -1,0 +1,302 @@
+#!/bin/sh
+
+  #########################################################
+
+  ########   ##########   ######   ## ########   ##########
+  ##      ## ##         ##      ## ## ##      ## ##
+  ##      ## ##         ##         ## ##      ## ##
+  ##      ## ##         ##         ## ##      ## ##
+  ########   ######     ##         ## ########   ######
+  ####       ##         ##         ## ##         ##
+  ##  ##     ##         ##         ## ##         ##
+  ##    ##   ##         ##      ## ## ##         ##
+  ##      ## ##########   ######   ## ##         ##########
+
+  #########################################################
+
+  EXT_NAME="Dropbear"
+  EXT_FILE="dropbear"
+  EXT_DESC="Dropbear is a reatively small SSH server and client."
+  EXT_AUTH="Matt Johnston;Peter Fichtner"
+  EXT_VERS="2025.87"
+  EXT_COPY="MIT"
+  EXT_SITE="https://matt.ucc.asn.au/dropbear/dropbear.html"
+  EXT_PLAT="all"
+  EXT_KERN=""
+  EXT_DEPS=""
+
+  MAINTAIN="CentralWare"
+
+  SRC_DEPS="bash python3.6"
+  SRC_FILE="dropbear-VERSION.tar.bz2"
+  SRC_PATH="dropbear-VERSION"
+  SRC_PACK="dropbear__VERSION.tar.gz"
+  SRC_SITE="https://matt.ucc.asn.au/dropbear/releases/${SRC_FILE}"
+
+
+ #################################################################################################
+# We need to locate our function script  #  These are shared functions for all extension builders #
+###################################################################################################
+CUR=$(pwd); mkdir -p $CUR/.log $CUR/.tmp $CUR/dl $CUR/pkg                                         #
+###################################################################################################
+FNC=""; [ -f ./functions ] && FNC="./" # Place "functions" in OUR directory for a custom copy     #
+[ "${FNC}" == "" ] && [ -f ../functions ] && FNC="../"                                            #
+[ "${FNC}" == "" ] && [ -f /opt/functions ] && FNC="/opt"                                         #
+[ "${FNC}" == "" ] && [ -f /etc/init.d/functions ] && FNC="/etc/init.d"                           #
+[ "${FNC}" == "" ] && [ -f /usr/local/etc/functions ] && FNC="/usr/local/etc"                     #
+[ "${FNC}" == "" ] && echo -e '\033[1;31mERROR! \033[0;39mSupport file not found!' && exit 1      #
+. ${FNC}/functions  #  Now that we're found it, let's load it!                                    #
+tick                #  Start our compilation timer tick-tock                                      #
+###################################################################################################
+
+function about()
+{
+    clear                                            # Clear the screen
+    title                                            # Show our title page
+    screenPOS 21 1; echo "${ORANGE}${EXT_NAME}   ${YELLOW}${EXT_DESC}${NORMAL}"
+    screenPOS 23 1; echo "${ORANGE}${EXT_FUNC} ${GREEN}[option] ${MAGENTA}[switches]${NORMAL}"
+    echo
+    echo "   ${GREEN}v${GREY}ersion              ${WHITE}Goes online and obtains the most RECENT stable version number${NORMAL}"
+    echo "   ${GREEN}d${GREY}ownload             ${WHITE}Goes online and downloads the source archive${NORMAL}"
+    echo "   ${GREEN}e${GREY}xtract              ${WHITE}Extracts the source archive (downloads if not available)${NORMAL}"
+    echo "   ${GREEN}c${GREY}ompile              ${WHITE}Compile the extension (download/extract if not available)${NORMAL}"
+    echo "   ${GREEN}p${GREY}ackage              ${WHITE}Package the compiled extension (does all of the above)${NORMAL}"
+    echo
+    echo "   ${MAGENTA}version=1.2.3        ${WHITE}Assign the version to use (uses RECENT if not supplied)${NORMAL}"
+    echo
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}p              ${WHITE}Compile and package the most recent version${NORMAL}"
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}p ${MAGENTA}ver=1.2.3    ${WHITE}Compile and package version 1.2.3${NORMAL}"
+    echo "${ORANGE}${EXT_FUNC} ${GREEN}e ${MAGENTA}ver=2.3.4    ${WHITE}Download and Extract package version 2.3.4${NORMAL}"
+    exit 1
+}
+
+function version()
+{
+    extload quiet wget
+    wget -q --no-check-certificate $EXT_SITE -O - | \
+    grep "Latest is" | awk -F "<" '{print $1}' | \
+    awk '{print $3}'
+}
+
+function validate()
+{
+    echo "validate()"
+}
+
+function download()
+{
+    EXT_VERS=$1
+    [ "${VERS}" == "" ] && EXT_VERS=$(version)
+    VERS=$EXT_VERS
+
+    echo -n "Downloading $VERS "
+
+    DOWNLOAD=${SRC_SITE//VERSION/$VERS}
+    FILENAME=${SRC_FILE//VERSION/$VERS}
+    SRC_PACK=${SRC_PACK//VERSION/$VERS}
+
+    if [ ! -f $CUR/dl/${SRC_PACK} ]; then
+        cd $CUR/.tmp
+        echo -n "."
+        ERR=0; wget --no-check-certificate $DOWNLOAD >$CUR/.log/download.log 2>&1 || ERR=1
+        if [ "${ERR}" == "1" ]; then
+            echo "${RED}ERROR! ${YELLOW}Failed download${NORMAL}"; exit 1
+        fi
+        echo -n "."
+        if [ ! -f $FILENAME ]; then
+            echo "${RED}ERROR! ${YELLOW}Problem downloading source package (1)${NORMAL}"; exit 1
+        fi
+
+        echo -n "."
+        TYPE=$(extractCommand $FILENAME)
+        EXTR=$(echo $TYPE | awk '{print $1}')
+        TEST=$(which $EXTR)
+        [ "${TEST}" == "" ] && exit 1
+        TYPE=${TYPE//FILENAME/${FILENAME}}
+
+        echo -n "."
+        ${TYPE} > $CUR/.log/extract.log 2>&1 || exit 1
+        echo -n "."
+        rm $FILENAME -f
+        tar -zcf $CUR/dl/$SRC_PACK *
+        cd $CUR
+        rm $CUR/.tmp -fR
+    fi
+    if [ ! -f $CUR/dl/$SRC_PACK ]; then
+        echo "${RED}ERROR! ${YELLOW}Problem downloading source package (2)${NORMAL}"
+        exit 1
+    fi
+    echo
+}
+
+function explode()
+{
+    echo "explode()"
+}
+
+function extract()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(version)
+    SRC_PATH=${SRC_PATH//VERSION/$VERS}
+    SRC_PACK=${SRC_PACK//VERSION/$VERS}
+
+
+    if [ ! -f $CUR/dl/${SRC_PACK} ]; then
+        download $VERS
+    fi
+
+    if [ ! -d $CUR/src/${SRC_PATH} ]; then
+        echo -n "Extracting $SRC_PATH "
+        mkdir -p $CUR/src; cd $CUR/src
+        ERR=0; tar -zxf $CUR/dl/$SRC_PACK || ERR=1
+        if [ "${ERR}" == "1" ]; then
+            echo "${RED}ERROR! ${YELLOW}Problem extracting source package${NORMAL}"; exit 1
+        fi
+    fi
+}
+
+SRC_DEPS="wget compiletc squashfs-tools ${SRC_DEPS}"
+
+function patches()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(version)
+    SRC_PATH=${SRC_PATH//VERSION/$VERS}
+    if [ -d $CUR/.res ]; then
+        cd $CUR/.res
+        echo -n "Patching "
+        ls -1 | grep ".patch" > /tmp/patch.lst
+        PATCHES=$(cat /tmp/patch.lst)
+        rm /tmp/patch.lst -f
+        cd $CUR/src/${SRC_PATH}
+        if [ ! -f ./.patched ]; then
+            for PATCH in $PATCHES
+            do
+                [ ! "${PATCH}" == "" ] && patch -Np1 -i $CUR/.res/${PATCH} >> $CUR/.log/cmp_patches.log 2>&1
+            done
+            touch ./.patched
+        fi
+    fi
+}
+
+function configure()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(version)
+    SRC_PATH=${SRC_PATH//VERSION/$VERS}
+    cd $CUR/src/${SRC_PATH}
+    getCPU
+
+    if [ ! -f ./.configured ]; then
+        echo -n "Configuring "
+        ./configure \
+            --prefix=/usr/local \
+            --mandir=/usr/local/share/man \
+            --infodir=/usr/local/share/info > \
+            $CUR/.log/cmp_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+}
+
+function compile()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(version)
+    SRC_PATH=${SRC_PATH//VERSION/$VERS}
+    [ ! -d $SRC_PATH ] && extract $VERS
+    getCPU
+
+    extload $SRC_DEPS
+
+    cd $CUR/src/${SRC_PATH}
+    patches
+    configure
+    if [ ! -f ./.compiled ]; then
+        make -j$(nproc) -O > $CUR/.log/cmp_compile.log 2>&1 || exit 1
+        touch ./.compiled
+    fi
+}
+
+function test()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(version)
+    SRC_PATH=${SRC_PATH//VERSION/$VERS}
+    [ ! -d $SRC_PATH ] && compile $VERS
+
+    cd $CUR/src/${SRC_PATH}
+    if [ ! -f ./.tested ]; then
+        make -j$(nproc) check > $CUR/log/cmp_testing.log 2>&1
+        touch ./.tested
+    fi
+}
+
+function package()
+{
+    VERS=$1; [ "${VERS}" == "" ] && VERS=$(version)
+    SRC_PATH=${SRC_PATH//VERSION/$VERS}
+    [ ! -f $SRC_PATH/.compiled ] && compile $VERS
+
+    mkdir -p $CUR/bin; rm $CUR/bin -fR; mkdir -p $CUR/bin
+
+    cd $CUR/src/$SRC_PATH
+
+    echo -n "Installing "
+    make DESTDIR=$CUR/bin install > $CUR/.log/pkg_install.log 2>&1 || exit 1
+
+    echo -n "Stripping "
+    stripper $CUR/bin
+
+    echo -n "Squashing "
+    [ -f $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg ] && rm $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg -f
+    cd $CUR; mksquashfs bin $CUR/pkg/${EXT_FILE}__${VERS}__${CPU}.pkg >$CUR/.log/pkg_squash.log 2>&1 || exit 1
+
+    cd $CUR/pkg
+    echo -n "Signing "
+    md5sum ${EXT_FILE}__${VERS}__${CPU}.pkg > ${EXT_FILE}__${VERS}__${CPU}.md5
+    echo
+
+    # Create our INFO file #
+    CHANGELOG=""; [ -f $CUR/.res/changelog__${VERS}.txt ] && CHANGELOG=$(cat $CUR/.res/changelog__${VERS}.txt);
+    [ "$CHANGELOG" == "" ] && [ -f $CUR/.res/changelog.txt ] && CHANGELOG=$(cat $CUR/.res/changelog.txt);
+
+    COMMENTS=""; [ -f $CUR/.res/comments__${VERS}.txt ] && COMMENTS=$(cat $CUR/.res/comments__${VERS}.txt);
+    [ "$COMMENTS" == "" ] && [ -f $CUR/.res/comments.txt ] && COMMENTS=$(cat $CUR/.res/comments.txt);
+
+    FILESIZE=$(bytes $(ls ${EXT_FILE}__${VERS}__${CPU}.pkg -la | awk '{print $5}'))
+    echo -e "title:        $EXT_FILE\ndescription:  $EXT_DESC\nversion:      $VERS" > build.info
+    echo -e "platform:     $CPU\nauthor:       $EXT_AUTH\nwebsite:      $EXT_SITE" >> build.info
+    echo -e "copyright:    $EXT_COPY\nplatforms:    $EXT_PLAT\nfilesize:     $FILESIZE" >> build.info
+    echo -e "maintainer:   $MAINTAIN\ncomments:     $COMMENTS\nchangelog:    $CHANGELOG" >> build.info
+    mv build.info ${EXT_FILE}__${VERS}__${CPU}.info
+
+    # Create our INIT file #
+    if [ -f $CUR/.res/${EXT_FILE}.init ]; then
+        cp $CUR/.res/${EXT_FILE}.init ./${EXT_FILE}__${VERS}__${CPU}.init
+        chmod +x ${EXT_FILE}__${VERS}__${CPU}.init
+    fi
+
+    [ -d $CUR/bin ] && rm $CUR/bin -fR
+    [ -d $CUR/.tmp ] && rm $CUR/.tmp -fR
+}
+
+
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;                                # Tell builder WHAT VERSION we're going to use
+            esac
+            ;;
+        *)
+            case $i in
+                v*)  version;           exit 0 ;;                        # If VERSION isn't supplied, GET IT!
+                d*)  download $VERSION; exit 0 ;;                        # Download the source archive
+                e*)  extract $VERSION;  exit 0 ;;                        # Download/Extract the source archive
+                c*)  compile $VERSION;  exit 0 ;;                        # Download/Extract/Compile the source archive
+                p*)  package $VERSION;  exit 0 ;;                        # Download/Extract/Compile/Package the source archive
+            esac
+            ;;
+    esac
+done
+
+about; exit
+
+#%# END OF BUILDER #%#

@@ -1,0 +1,28 @@
+# Contributor: Andrej Kolchin <alpine@kaathewise.net>
+# Maintainer: Andrej Kolchin <alpine@kaathewise.net>
+pkgname=futhark
+pkgver=0.25.19
+pkgrel=0
+pkgdesc="A data-parallel functional programming language"
+url="https://futhark-lang.org/"
+arch="aarch64 x86_64" # Limited by Cabal, which in turn is limited by GHC
+license="ISC"
+makedepends="make cabal zlib-dev ncurses-dev"
+source="$pkgname-$pkgver.tar.gz::https://github.com/diku-dk/futhark/archive/v$pkgver.tar.gz"
+
+build() {
+	make configure
+	make build
+}
+
+check() {
+	make unittest
+}
+
+package() {
+	PREFIX="$pkgdir"/usr/ make install
+}
+
+sha512sums="
+1601926321764f9065253c9a541ee9bd9464b4a7c73c3e583c533513cb5f01031e5a355bfe3769ada7812b49d24da3456fc5e8a0901c02e7f493991817575332  futhark-0.25.19.tar.gz
+"

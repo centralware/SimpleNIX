@@ -1,0 +1,98 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+pkgname=mawk
+pkgver=1.3.4
+_pkgdate=20240622
+pkgrel=10
+pkgdesc="mawk is an interpreter for the AWK Programming Language"
+url="https://invisible-island.net/mawk/"
+arch="all"
+license="GPL2"
+builddir="$pkgname-$pkgver-$_pkgdate"
+pkgfile="${pkgname}-${pkgver}.tgz"
+pkgdir="${pkgname}-${pkgver}"
+source="https://invisible-island.net/archives/mawk/mawk-$pkgver-$_pkgdate.tgz -O $pkgfile"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -zxf ${pkgfile}
+        mv $builddir $pkgdir
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_depends()
+{
+    echo "Loading compilation dependencies"
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring...${NORMAL}"
+        CPU=$(GetProcessorType)
+
+        CFLAGS="$CFLAGS -D_GNU_SOURCE" \
+            ./configure \
+            --prefix=/usr/local \
+            --sysconfdir=/usr/local/etc \
+            --mandir=/usr/local/share/man \
+            --localstatedir=/var > \
+            $CUR/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+
+    echo "${CYAN}Testing...${NORMAL}"
+    make -j$(nproc) check > $CUR/_testing.log 2>&1 || exit 1
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget
+
+src_build
+

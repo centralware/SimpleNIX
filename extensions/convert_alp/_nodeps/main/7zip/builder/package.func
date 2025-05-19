@@ -1,0 +1,6 @@
+package() {
+~!~!~install -Dm755 CPP/7zip/Bundles/Alone2/b/g/7zz "$pkgdir"/usr/bin/7zz
+~!~!~ln -s 7zz "$pkgdir"/usr/bin/7z
+
+~!~!~install -Dm644 "$builddir"/DOC/* -t "$pkgdir"/usr/share/doc/${EXT_NAME}/
+}

@@ -1,0 +1,62 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=kdenlive
+pkgver=24.05.2
+pkgrel=0
+# ppc64le mlt uses 64bit long double while libgcc uses 128bit long double
+# ppc64le, s390x, loongarch64 and riscv64 blocked by qt6-qtwebengine -> purpose
+# aarch64 and armv7 blocked by OpenGL
+arch="all !armhf !ppc64le !s390x !riscv64 !aarch64 !armv7 !loongarch64"
+url="https://kdenlive.org"
+pkgdesc="An intuitive and powerful multi-track video editor, including most recent video technologies"
+license="GPL-2.0-or-later"
+depends="
+	ffmpeg
+	frei0r-plugins
+	qqc2-desktop-style
+	"
+makedepends="
+	extra-cmake-modules
+	kdeclarative-dev
+	kdoctools-dev
+	kfilemetadata-dev
+	knewstuff-dev
+	knotifyconfig-dev
+	kxmlgui-dev
+	mlt-dev
+	purpose-dev
+	qt6-qtbase-dev
+	qt6-qtmultimedia-dev
+	qt6-qtnetworkauth-dev
+	qt6-qtsvg-dev
+	rttr-dev
+	samurai
+	"
+checkdepends="xvfb-run"
+subpackages="$pkgname-doc $pkgname-lang"
+_repo_url="https://invent.kde.org/multimedia/kdenlive.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/kdenlive-$pkgver.tar.xz"
+options="!check" # Segfaulting
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	xvfb-run ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+8ad98b77e7f8e5759039f4f4b702f1295be8ea6386a98696c5c9d28c10b904b62ddcf8d7154f8ad3e561eb7a2322a5138ec2c9df4b127c4a633d9b52693c50b2  kdenlive-24.05.2.tar.xz
+"

@@ -1,0 +1,768 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions; cpuType
+
+APP_NAME="distcc"
+APP_DESC="Distributed Compiler DISTcc"
+#APP_HOST="https://sourceforge.net/projects/acpiclient/files/acpiclient/!VERSION!/${APP_FILE}"
+APP_DEPS=""
+
+BLD_EXTS="extload automake clang coreutils gettext-dev git gtk3-dev libtool-dev \
+          lld procps-ng python3.9-setuptools python3.9-dev python3.9 popt-dev \
+          squashfs-tools compiletc wget"
+
+##EXTRA_C=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -Wno-fortify-source'
+##EXTRA_CXX=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -fno-rtti -Wno-fortify-source'
+##LDFLAGS='-Wl,-L/usr/local/lib -Wl,-rpath,/usr/local/lib -Wl,-O1'
+##export EXTRA_C EXTRA_CXX LDFLAGS
+##cpuType
+
+
+##CC='clang'
+##CXX='clang++'
+##CFLAGS='-Os -pipe'
+##CXXFLAGS='-Os -pipe'
+##EXTRA_C=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -Wno-fortify-source'
+##EXTRA_CXX=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -fno-rtti -Wno-fortify-source'
+##CFLAGS="${CFLAGS}${EXTRA_C}"
+##CXXFLAGS="${CXXFLAGS}${EXTRA_CXX}"
+##LDFLAGS='-Wl,-L/usr/local/lib -Wl,-rpath,/usr/local/lib -Wl,-O1'
+##export CC CXX CFLAGS CXXFLAGS LDFLAGS
+
+#############################
+showapp "$APP_DESC"
+
+prepare()
+{
+    #echo "${CYAN}Preparation${NORMAL}"
+    extload $BLD_EXTS
+}
+
+get_version()
+{
+    if [ ! -f $CUR/versions.lst ]; then
+        HOST="https://github.com/distcc/distcc/tags"
+        mkdir -p $CUR/tmp; cd $CUR/tmp
+        touch test; rm * -f
+        [ ! -f tags ] && wget --no-check-certificate $HOST
+        [ ! -f index ] && cat tags | grep "/releases/tag/" | awk -F"href=" '{print $2}' > index
+        cat index | awk -F"\"" '{print $2}' | awk -F "tag" '{print $2}' | awk -F "/" '{print $2}' > index2
+        sed -i 's/v//g' index2; sed -i 's/c//g' index2
+        cat index2 | sort -n > $CUR/versions.lst
+        cd $CUR; rm $CUR/tmp -fR
+    fi
+    VERSION=$(tail -n 1 $CUR/versions.lst)
+}
+
+get_sources()
+{
+    mkdir -p $CUR/log
+    if [ ! -d $CUR/src/distcc ]; then
+        echo "${CYAN}Downloading Sources${NORMAL}"
+        mkdir -p $CUR/src; cd $CUR/src
+        wget -q --no-check-certificate https://github.com/distcc/distcc/releases/download/v${VERSION}/distcc-${VERSION}.tar.gz
+        #git clone --depth 1 https://github.com/distcc/distcc.git >$CUR/log/_git_source.log 2>&1 || exit 1
+    fi
+
+    if [ ! -d $CUR/src/distcc-${VERSION} ]; then
+        echo "${CYAN}Extracting Sources${NORMAL}"
+        tar -zxf distcc-${VERSION}.tar.gz || exit
+    fi
+
+    if [ ! -d $CUR/src/_patches ]; then
+        echo "${CYAN}Downloading Patches${NORMAL}"
+        mkdir -p $CUR/src/_patches; cd $CUR/src/_patches
+        wget -q --no-check-certificate http://repo.tinycorelinux.net/15.x/armhf/tcz/src/distcc/distcc.path.patch
+        wget -q --no-check-certificate http://repo.tinycorelinux.net/15.x/armhf/tcz/src/distcc/distcc.void.patch
+    fi
+
+}
+
+do_configure()
+{
+    cd $CUR/src/distcc-${VERSION}
+
+    if [ ! -f ./.patched ]; then
+        echo "${CYAN}Patching Sources${NORMAL}"
+        patch -Np1 < ../_patches/distcc.void.patch >>$CUR/log/_patches.log 2>&1
+        patch -Np1 < ../_patches/distcc.path.patch >>$CUR/log/_patches.log 2>&1
+        touch ./.patched
+    fi
+
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring v${VERSION}${NORMAL}"
+        ./autogen.sh >$CUR/log/_autogen.log 2>&1 || exit 1
+#        ./configure >$CUR/log/_configure.log 2>&1 || exit 1
+        ./configure --prefix=/usr/local --without-libiberty >$CUR/log/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+}
+
+do_compile()
+{
+    echo "${CYAN}Compiling${NORMAL}"
+    cd $CUR/src/distcc-${VERSION}
+    make -j$(nproc) > $CUR/log/_compile.log 2>&1 || exit 1
+    stripper $CUR/src/distcc
+}
+
+do_install()
+{
+    echo "${CYAN}Installing${NORMAL}"
+    cd $CUR/src/distcc-${VERSION}
+    [ -d $CUR/bin/${VERSION}/${CPU} ] && sudo rm $CUR/bin/${VERSION}/${CPU} -fR
+    make DESTDIR=$CUR/bin/${VERSION}/${CPU} install >$CUR/log/_install.log 2>&1 || exit 1
+}
+
+do_package()
+{
+    echo "${CYAN}Packaging${NORMAL}"
+    cd $CUR/bin/${VERSION}/${CPU}
+    tar -zcf $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz *
+    mv $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz $REPO
+}
+
+################################
+ ###                        ###
+  ### COMMAND LINE OPTIONS ###
+ ###                        ###
+################################
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                clean) DO_CLEAN=1 ;;
+            esac ;;
+    esac
+done
+
+
+
+prepare
+[ "${VERSION}" == "" ] && get_version
+echo "Version: $VERSION"
+[ ! "${DO_CLEAN}" == "" ] && rm $CUR/src/${APP_NAME}-${VERSION} -fR >/dev/null 2>&1
+get_sources
+do_configure
+do_compile
+do_install
+do_package
+
+echo "${GREEN}Done.${NORMAL}"
+
+
+
+
+
+
+
+
+
+exit
+
+
+
+
+
+
+
+
+
+#!/bin/sh
+. ../functions; clear; CUR=$(pwd)
+
+
+extload automake clang coreutils gettext-dev git gtk3-dev libtool-dev \
+        lld procps-ng python3.11-setuptools python3.11-dev popt-dev \
+        squashfs-tools
+
+EXTRA_C=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -Wno-fortify-source'
+EXTRA_CXX=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -fno-rtti -Wno-fortify-source'
+LDFLAGS='-Wl,-L/usr/local/lib -Wl,-rpath,/usr/local/lib -Wl,-O1'
+cpuType
+
+mkdir -p patches log && rm log -fR && mkdir log
+mkdir -p /tmp/build/distcc && rm /tmp/build/distcc -fR
+mkdir -p /tmp/build/distcc-doc && rm /tmp/build/distcc-doc -fR
+
+if [ ! -d distcc ]; then
+    echo "${CYAN}Downloading Sources${NORMAL}"
+    git clone --depth 1 https://github.com/distcc/distcc.git >$CUR/log/_git_source.log 2>&1 || exit 1
+fi
+
+if [ ! -f $CUR/patches/distcc.void.patch ]; then
+    echo "${CYAN}Downloading Patches${NORMAL}"
+    cd $CUR/patches
+    wget -q http://repo.tinycorelinux.net/15.x/armhf/tcz/src/distcc/distcc.path.patch
+    wget -q http://repo.tinycorelinux.net/15.x/armhf/tcz/src/distcc/distcc.void.patch
+fi
+
+cd $CUR/distcc
+
+if [ ! -f ./.patched ]; then
+    echo "${CYAN}Patching Sources${NORMAL}"
+    patch -Np1 < ../patches/distcc.void.patch >>$CUR/log/_patches.log 2>&1
+    patch -Np1 < ../patches/distcc.path.patch >>$CUR/log/_patches.log 2>&1
+    touch ./.patched
+fi
+
+if [ ! -f ./.configured ]; then
+    echo "${CYAN}Configuration${NORMAL}"
+    ./autogen.sh >$CUR/log/_autogen.log 2>&1 || exit 1
+    ./configure >$CUR/log/_configure.log 2>&1 || exit 1
+    touch ./.configured
+fi
+
+echo "${CYAN}Compiling${NORMAL}"
+make -j$(nproc) >$CUR/log/_compile.log 2>&1 || exit 1
+
+echo "${CYAN}Installing${NORMAL}"
+mkdir -p /tmp/build/distcc && rm /tmp/build/distcc -fR
+make DESTDIR=/tmp/build/distcc install >$CUR/log/_install.log 2>&1 || exit 1
+
+echo "${CYAN}Packaging${NORMAL}"
+mkdir -p /tmp/build/distcc-doc/usr/local
+mv /tmp/build/distcc/usr/local/share /tmp/build/distcc-doc/usr/local/
+
+cd /tmp/build
+stripper /tmp/build
+
+mksquashfs distcc $CUR/distcc.tcz >$CUR/log/_squash.log 2>&1 || exit 1
+mksquashfs distcc-doc $CUR/distcc-doc.tcz >>$CUR/log/_squash.log 2>&1 || exit 1
+
+cd distcc
+find . -type f >$CUR/distcc.tcz.list
+cd ../distcc-doc
+find . -type f >$CUR/distcc-doc.tcz.list
+
+cd $CUR
+md5sum distcc.tcz > distcc.tcz.md5.txt
+md5sum distcc-doc.tcz > distcc-doc.tcz.md5.txt
+
+nodot distcc.tcz.list
+nodot distcc-doc.tcz.list
+
+SIZE=$(bytes $(ls -la distcc.tcz | awk '{print $5}'))
+DSIZE=$(bytes $(ls -la distcc-doc.tcz | awk '{print $5}'))
+
+NFO="distcc.tcz.info"
+echo "Title:          distcc.tcz" > $NFO
+echo "Description:    Distributed C Compiler" >> $NFO
+echo "Version:        git commit 5394870" >> $NFO
+echo "Author:         see sites below" >> $NFO
+echo "Original-site:  https://distcc.github.io/index.html" >> $NFO
+echo "Copying-policy: GPLv2" >> $NFO
+echo "Size:           !SIZE!" >> $NFO
+echo "Extension_by:   CentralWare, polikuo" >> $NFO
+echo "Tags:           multithreading distribute compiler" >> $NFO
+echo "Comments:       a fast, free distributed C/C++ compiler" >> $NFO
+echo "                ----------" >> $NFO
+echo "                This example uses pump mode, which usually produces more consistant result" >> $NFO
+echo "                ----------" >> $NFO
+echo "                Getting started:" >> $NFO
+echo "                  Prepare 2 or more machines" >> $NFO
+echo "                On Volunteer(s) - Server(s), Helper(s), IP: 192.168.0.3(, 192.168.0.4, ...)" >> $NFO
+echo "                  Load this extension, the daemon will start automatically." >> $NFO
+echo "                  To fine tune the behavior, create /etc/sysconfig/tcedir/.distcc.sh" >> $NFO
+echo "                  The example file is in /usr/local/share/doc/distcc/tc.sh" >> $NFO
+echo "                    \$ cp /usr/local/share/doc/distcc/tc.sh /etc/sysconfig/tcedir/.distcc.sh" >> $NFO
+echo "                    \$ vi /etc/sysconfig/tcedir/.distcc.sh" >> $NFO
+echo "                On Worker - Client, You compile here, IP: 192.168.0.2" >> $NFO
+echo "                  Create /etc/sysconfig/tcedir/.distcc.sh but keep it empty." >> $NFO
+echo "                  The daemon will not start, which it shouldn't." >> $NFO
+echo "                    \$ touch /etc/sysconfig/tcedir/.distcc.sh" >> $NFO
+echo "                  Edit ~/.distcc/hosts" >> $NFO
+echo "                    localhost" >> $NFO
+echo "                    192.168.0.3,lzo,cpp" >> $NFO
+echo "                  In terminal" >> $NFO
+echo "                    \$ export PATH="/usr/local/lib/distcc:${PATH}"" >> $NFO
+echo "                    \$ ./configure ..." >> $NFO
+echo "                    \$ pump make -j8 (most programs)" >> $NFO
+echo "                    \$ pump ninja -j8 (Ninja)" >> $NFO
+echo "                  Alternative (sometimes works better)" >> $NFO
+echo "                    \$ ./configure CC=/usr/local/lib/distcc/gcc ..." >> $NFO
+echo "                    \$ eval 'pump --startup'" >> $NFO
+echo "                    \$ make -j8 (most programs)" >> $NFO
+echo "                    \$ ninja -j8 (Ninja)" >> $NFO
+echo "                    \$ ./mach build -j8 ... (firefox mach)" >> $NFO
+echo "                    \$ pump --shutdown" >> $NFO
+echo "                ----------" >> $NFO
+echo "                IMPORTANT:" >> $NFO
+echo "                  LTO compilations is now able to be distributed." >> $NFO
+echo "                    https://github.com/distcc/distcc/pull/429" >> $NFO
+echo "                  For more information, check out the forum." >> $NFO
+echo "                    https://forum.tinycorelinux.net/index.php/topic,27433.msg176654.html" >> $NFO
+echo "                ----------" >> $NFO
+echo "                This package contains:" >> $NFO
+echo "                  https://github.com/distcc/distcc.git" >> $NFO
+echo "                ----------" >> $NFO
+echo "                Compiled for $(version) ${CPU}" >> $NFO
+echo "                ----------" >> $NFO
+echo "Change-log:     2024/12/12 First Version" >> $NFO
+echo "                2025/01/06 LTO enabled, config relocated to fix onboot behavior ('~/.distcc/tc.sh' -> '/etc/sysconfig/tcedir/.distcc.sh')" >> $NFO
+echo "Current:        2025/01/06 LTO enabled, config relocated to fix onboot behavior" >> $NFO
+
+cp distcc.tcz.info distcc-doc.tcz.info
+sed -i 's/distcc.tcz/distcc-doc.tcz/g' distcc-doc.tcz.info
+
+sed -i "s/!SIZE!/${SIZE}/g" distcc.tcz.info
+sed -i "s/!SIZE!/${DSIZE}/g" distcc-doc.tcz.info
+
+echo $(ticktock)
+
+exit
+
+
+
+
+
+
+
+Compiled on RPI4B-8G with 6.6.47-piCore-v8 on portable SSD
+
+Compile Flags:
+CC='clang --gcc-install-dir=/usr/local/lib/gcc/armv7l-unknown-linux-gnueabihf/13.2.0'
+CXX='clang++ --gcc-install-dir=/usr/local/lib/gcc/armv7l-unknown-linux-gnueabihf/13.2.0'
+CFLAGS='-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp -Os -pipe'
+CXXFLAGS='-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp -Os -pipe'
+EXTRA_C=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -Wno-fortify-source'
+EXTRA_CXX=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -fno-rtti -Wno-fortify-source'
+CFLAGS="${CFLAGS}${EXTRA_C}"
+CXXFLAGS="${CXXFLAGS}${EXTRA_CXX}"
+LDFLAGS='-Wl,-L/usr/local/lib -Wl,-rpath,/usr/local/lib -Wl,-O1'
+export CC CXX CFLAGS CXXFLAGS LDFLAGS
+
+Dependencies:
+automake
+clang
+coreutils
+gettext-dev
+git
+gtk3-dev
+libtool-dev
+lld
+procps-ng
+python3.11-setuptools
+python3.11-dev
+
+Commands:
+
+# System adjustment, stop python from adding unwanted flags (-g, -O3)
+# Make these files are modified
+py1=/usr/local/lib/python3.11/config-3.11-arm-linux-gnueabihf/Makefile
+py2=/usr/local/lib/python3.11/_sysconfigdata__linux_arm-linux-gnueabihf.py
+sudo busybox cp $(realpath $py1) $py1
+sudo busybox cp $(realpath $py2) $py2
+sudo sed -i 's/-g -fwrapv -O3/-fwrapv/g' $py1 $py2
+unset py1 py2
+
+git clone --depth 1 https://github.com/distcc/distcc.git
+
+cd distcc/
+
+############################################
+$ git log -n 1
+commit 5394870bed00c20fc9914e303356103ecd3394a6 (grafted, HEAD -> master, origin/master, origin/HEAD)
+Author: Martin Pool <mbp@sourcefrog.net>
+Date:   Tue Oct 15 08:16:13 2024 -0700
+
+    Merge pull request #532 from distcc/ci-macos
+
+    fix: disable macOS CI for now
+############################################
+
+
+# -Wno-strict-prototypes
+patch -Np1 < ../distcc.void.patch
+
+# adjust hardcoded file path for TC (/usr/lib --> /usr/local/lib)
+patch -Np1 < ../distcc.path.patch
+
+./autogen.sh
+
+./configure --prefix=/usr/local --without-libiberty
+
+time make -j4
+real    0m 27.70s
+user    1m 8.05s
+sys     0m 4.58s
+
+make install DESTDIR=/mnt/sda1/unstripped-copies/distcc
+
+# packing
+
+cd $(mktemp -d)
+
+cp -r /mnt/sda1/unstripped-copies/distcc .
+
+rm -fr ./distcc/usr/local/sbin ./distcc/usr/local/lib/python3.11/site-packages/include_server/__pycache__/ ./distcc/usr/local/share/man ./distcc/usr/local/share/doc/distcc/example ./distcc/usr/local/share/doc/distcc/*txt
+
+# MASQUERADING
+
+mkdir ./distcc/usr/local/lib/distcc
+
+cd ./distcc/usr/local/lib/distcc
+
+COMPILER='gfortran
+armv7l-unknown-linux-gnueabihf-c++
+armv7l-unknown-linux-gnueabihf-g++
+armv7l-unknown-linux-gnueabihf-gcc
+c++
+cc
+g++
+gcc'
+
+for COM in $COMPILER; do
+  ln -s /usr/local/bin/distcc $COM
+done
+
+# clang needs special care on piCore 32-bit
+vi clang clang++
+chmod +x clang clang++
+
+# /usr/local/tce.installed/distcc
+
+cd ../..
+mkdir -m 775 tce.installed
+cp /mnt/sda1/notes/tce-installed/distcc tce.installed/
+
+# strip
+
+find -type f -exec head -c4 {} ';' -print | awk '/^\x7fELF/{print(substr($0,5))}' | xargs llvm-strip --strip-unneeded
+
+# example file
+
+cp /mnt/sda1/notes/extra-files/distcc/tc.sh ./share/doc/distcc/
+
+# commands.allow.sh
+
+cat /mnt/sda1/notes/extra-files/distcc/commands.allow.sh > ./etc/distcc/commands.allow.sh
+
+# extra deps
+
+echo procps-ng.tcz >> distcc.tcz.dep
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+FLTK Compilation Notes:
+=======================
+
+Compiled on RPI Cluster
+  pi4-1: 4B-8G with 6.6.47-piCore-v8
+  pi4-2: 4B-4G with 6.6.47-piCore-v8
+  pi3-1: 3B-1G with 6.6.47-piCore-v7
+  pi3-2: 3B-1G with 6.6.47-piCore-v7
+-------------------------------------------------------------------------
+  tc@pi4-1:~$ distcc --show-hosts
+-------------------------------------------------------------------------
+localhost/4
+192.168.18.12,lzo,cpp/4
+192.168.18.13,lzo,cpp/4
+192.168.18.14,lzo,cpp/4
+-------------------------------------------------------------------------
+  onboot.lst for all 3 servers
+-------------------------------------------------------------------------
+mylocale.tcz
+openssh.tcz
+clang.tcz
+distcc.tcz
+-------------------------------------------------------------------------
+  ~/.distcc/tc.sh for all 3 servers
+-------------------------------------------------------------------------
+CFLAGS='-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp -Os -pipe'
+CXXFLAGS='-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp -Os -pipe'
+EXTRA_C=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions'
+EXTRA_CXX=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -fno-rtti'
+CFLAGS="${CFLAGS}${EXTRA_C} --gcc-install-dir=/usr/local/lib/gcc/armv7l-unknown-linux-gnueabihf/13.2.0"
+CXXFLAGS="${CXXFLAGS}${EXTRA_CXX} --gcc-install-dir=/usr/local/lib/gcc/armv7l-unknown-linux-gnueabihf/13.2.0"
+LDFLAGS='-L/usr/local/lib -Wl,-O1 -Wl,-rpath=/usr/local/lib'
+export CFLAGS CXXFLAGS LDFLAGS
+
+if [ $(id -u) = 0 ]; then
+  TCUSER=$(cat /etc/sysconfig/tcuser)
+  [ "$TCUSER" ] || TCUSER='tc'
+  CMD="--user $TCUSER"
+fi
+
+distccd --daemon $CMD \
+  --allow 192.168.0.0/16 \
+  --allow 172.16.0.0/12 \
+  --allow 10.0.0.0/8 \
+  --allow 127.0.0.0/8 \
+  --verbose --log-file=/var/log/distccd.log
+-------------------------------------------------------------------------
+
+
+References:
+1. Setting up RPI Cluster: https://forum.tinycorelinux.net/index.php/topic,25511.0.html
+2. configure warning (I'm switching to cmake)
+-------------------------------------------------------------------------
+  IMPORTANT NOTE:
+-------------------------------------------------------------------------
+
+  FLTK 1.4.x will be the last version(s) of FLTK supporting
+  autotools (configure + provided Makefiles) to build FLTK.
+  FLTK 1.5.0 and higher will only support FLTK builds using CMake.
+
+  We suggest to explore and use the CMake build system generators
+  for your own FLTK builds as soon as possible. Some new FLTK build
+  options will only be supported by CMake based builds.
+  Please see README.CMake.txt for details and instructions.
+
+  User projects that use CMake for their own build can benefit
+  substantially if the FLTK library has been built using CMake.
+
+-------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------
+  Test Build Starts
+-------------------------------------------------------------------------
+
+Compile Flags:
+CC='clang --gcc-install-dir=/usr/local/lib/gcc/armv7l-unknown-linux-gnueabihf/13.2.0'
+CXX='clang++ --gcc-install-dir=/usr/local/lib/gcc/armv7l-unknown-linux-gnueabihf/13.2.0'
+CFLAGS='-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp -Os -pipe'
+CXXFLAGS='-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp -Os -pipe'
+EXTRA_C=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions'
+EXTRA_CXX=' -L/usr/local/lib -flto=full -fuse-ld=lld -fno-exceptions -fno-rtti'
+CFLAGS="${CFLAGS}${EXTRA_C} -Wno-unused-command-line-argument"
+CXXFLAGS="${CXXFLAGS}${EXTRA_CXX} -Wno-unused-command-line-argument"
+LDFLAGS='-Wl,-L/usr/local/lib -Wl,-O1 -Wl,-rpath=/usr/local/lib'
+export CC CXX CFLAGS CXXFLAGS LDFLAGS
+export PATH='/usr/local/lib/distcc:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+Dependencies:
+cairo-dev
+compiletc
+clang
+distcc
+libxkbcommon-dev
+pango-dev
+wayland-dev
+wayland-protocols
+gtk3-dev
+lld
+
+Commands:
+
+./configure --prefix=/usr/local --enable-cairo --enable-cairoext --enable-cp936 --enable-localjpeg --enable-localpng --enable-localzlib --enable-pango --enable-usecairo --enable-use_std --enable-shared --enable-x11 --enable-wayland
+
+time pump make -j8
+
+Configuration Summary
+-------------------------------------------------------------------------
+    Directories: prefix=/usr/local
+                 bindir=${exec_prefix}/bin
+                 datadir=${datarootdir}
+                 datarootdir=${prefix}/share
+                 exec_prefix=${prefix}
+                 includedir=${prefix}/include
+                 libdir=${exec_prefix}/lib
+                 mandir=${datarootdir}/man
+    Build fluid: YES
+    Build tests: YES
+Cross-compiling: NO
+       Graphics: Wayland or X11 with cairo + Xfixes + Xinerama + Xcursor + Xrender + Cairo + Pango
+Image Libraries: JPEG=Builtin
+                 PNG=Builtin
+                 ZLIB=Builtin
+Forms library:   YES
+                 CAIRO=lib
+                 CAIRO=internal_use
+    Large Files: YES
+         OpenGL: YES
+        Threads: YES
+   Allow std:: : YES
+
+Fl.o: file not recognized: file format not recognized
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+make[1]: *** [Makefile:461: libfltk.so.1.4] Error 1
+make[1]: Leaving directory '/mnt/sda1/compile-temp/fltk-1.4.0-1/src'
+make: *** [Makefile:23: all] Error 1
+-------------------------------------------------------------------------
+
+  Reminder:
+  Likely need to specify LD
+  Some deps are mssing
+
+-------------------------------------------------------------------------
+  Test Build Ends
+-------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------
+  fltk-full.tcz Starts
+-------------------------------------------------------------------------
+
+Compile Flags:
+  # assigned in cmake command
+unset CC CXX CFLAGS CXXFLAGS LDFLAGS
+
+Dependencies:
+compiletc
+clang
+lld
+cmake
+distcc
+cairo-dev
+libxkbcommon-dev
+pango-dev
+wayland-dev
+wayland-protocols
+gtk3-dev
+libxkbfile-dev
+glu-dev
+libXres-dev
+libXaw-dev
+libXss-dev
+libdecor-dev
+libasound-dev
+
+Commands:
+
+-------------------------------------------------------------------------
+tc@pi4-1:~$ distcc --show-hosts
+localhost/4
+192.168.18.12,lzo,cpp/4
+192.168.18.13,lzo,cpp/4
+192.168.18.14,lzo,cpp/4
+-------------------------------------------------------------------------
+
+mkdir build  && cd build
+
+-------------------------------------------------------------------------
+  note: LDFLAGS are super important, pass them as CFLAGS, CXXFLAGS
+  cause the cmake in fltk doesn't detect it
+  LDFLAGS='-Wl,-L/usr/local/lib -Wl,-rpath=/usr/local/lib -Wl,-O1'
+  distcc: to run distcc, use the masquerade entries
+  (-DCMAKE_C_COMPILER='/usr/local/lib/distcc/clang' -DCMAKE_CXX_COMPILER='/usr/local/lib/distcc/clang++')
+  lld: Dont use [-DCMAKE_LINKER='/usr/local/bin/ld.lld'], got [GNU ld (GNU Binutils) 2.42]
+  CFLAGS='... -fuse-ld=lld ...'
+  --> clang++: error: unable to execute command: Segmentation fault
+  turn off test as they cause troubles (-DFLTK_BUILD_TEST=OFF)
+-------------------------------------------------------------------------
+cmake -DCMAKE_C_COMPILER='/usr/local/lib/distcc/clang' -DCMAKE_CXX_COMPILER='/usr/local/lib/distcc/clang++' \
+ -DCMAKE_C_FLAGS_MINSIZEREL='-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp -Os -pipe -L/usr/local/lib -flto=full -fno-exceptions -Wno-unused-value -fuse-ld=lld -Wl,-L/usr/local/lib -Wl,-rpath=/usr/local/lib -Wl,-O1 -Wl,-v' \
+ -DCMAKE_CXX_FLAGS_MINSIZEREL='-march=armv6zk -mtune=arm1176jzf-s -mfpu=vfp -Os -pipe -L/usr/local/lib -flto=full -fno-exceptions -fno-rtti -Wno-unused-value -fuse-ld=lld -Wl,-L/usr/local/lib -Wl,-rpath=/usr/local/lib -Wl,-O1 -Wl,-v' \
+ -DCMAKE_AR='/usr/local/bin/llvm-ar' -DCMAKE_RANLIB='/usr/local/bin/llvm-ranlib' -DCMAKE_NM='/usr/local/bin/llvm-nm' \
+ -DCMAKE_STRIP='/usr/local/bin/llvm-strip' -DCMAKE_BUILD_TYPE=MINSIZEREL -DCMAKE_INSTALL_PREFIX=/usr/local \
+ -DFLTK_BACKEND_WAYLAND=ON -DFLTK_BACKEND_X11=ON -DFLTK_BUILD_SHARED_LIBS=ON -DFLTK_OPTION_CAIRO_EXT=ON -DFLTK_OPTION_CAIRO_WINDOW=ON \
+ -DFLTK_OPTION_OPTIM='-Os' -DFLTK_OPTION_STD=ON -LAH .. | tee /tmp/cmake.info
+-------------------------------------------------------------------------
+  Compilation Begins
+-------------------------------------------------------------------------
+time pump make -j16
+-------------------------------------------------------------------------
+__________Warning: 13 pump-mode compilation(s) failed on server, but succeeded locally.
+real    33m 34.26s
+user    2h 6m 26s
+sys     1m 53.38s
+-------------------------------------------------------------------------
+  Meanwhile, open another terminal
+-------------------------------------------------------------------------
+distccmon-text 1 2>&1 | tee /tmp/distccmon.record
+-------------------------------------------------------------------------
+  You'll see something like this
+-------------------------------------------------------------------------
+  6939  Compile     Fl.cxx                                    192.168.18.12[0]
+  6957  Compile     Fl_Adjuster.cxx                           192.168.18.12[1]
+  6972  Compile     Fl_Browser.cxx                            192.168.18.12[2]
+  6980  Compile     Fl_Bitmap.cxx                             192.168.18.12[3]
+  6943  Compile     Fl_Bitmap.cxx                             192.168.18.13[0]
+  6977  Compile     Fl_Button.cxx                             192.168.18.13[1]
+  6981  Compile     Fl_Browser.cxx                            192.168.18.13[2]
+  6989  Compile     Fl_Browser_load.cxx                       192.168.18.13[3]
+  6951  Compile     Fl.cxx                                    192.168.18.14[0]
+  6976  Compile     Fl_Browser_.cxx                           192.168.18.14[1]
+  6982  Compile     Fl_Browser_.cxx                           192.168.18.14[2]
+  6990  Compile     Fl_Browser_load.cxx                       192.168.18.14[3]
+  6929  Compile     Fl_Adjuster.cxx                               localhost[0]
+  7006  Compile     Fl_Check_Browser.cxx                          localhost[1]
+  7008  Compile     Fl_Button.cxx                                 localhost[2]
+-------------------------------------------------------------------------
+  Summary
+-------------------------------------------------------------------------
+
+-- Configuration Summary for FLTK 1.4.0 generated by CMake 3.23.1 --
+
+-- The following OPTIONAL packages have been found:
+
+ * ZLIB
+ * PNG
+ * JPEG
+
+-- The following OPTIONAL packages have not been found:
+
+ * Doxygen
+
+-- Static libraries    will be built in: /mnt/sda1/compile-temp/fltk-1.4.0-1/build/lib
+-- Shared libraries    will be built in: /mnt/sda1/compile-temp/fltk-1.4.0-1/build/lib
+-- The forms library   will be built in: /mnt/sda1/compile-temp/fltk-1.4.0-1/build/lib
+-- The OpenGL library  will be built in: /mnt/sda1/compile-temp/fltk-1.4.0-1/build/lib
+-- fluid               will be built in: /mnt/sda1/compile-temp/fltk-1.4.0-1/build/bin
+-- fltk-options        will be built in: /mnt/sda1/compile-temp/fltk-1.4.0-1/build/bin
+-- Test programs       will be built in: /mnt/sda1/compile-temp/fltk-1.4.0-1/build/bin/test
+-- Example programs    will not be built (set FLTK_BUILD_EXAMPLES=ON to build)
+--
+-- Build configuration      MINSIZEREL
+-- Installation prefix      /usr/local
+
+-- Bundled Libraries        JPEG     = System: /usr/local/lib/libjpeg.so
+--                          PNG      = System: /usr/local/lib/libpng.so
+--                          ZLIB     = System: /usr/lib/libz.so
+--                          Libdecor = System: /usr/local/lib/libdecor-0.so
+
+-- Use Wayland              Yes (can also run as X11 client)
+-- All drawing uses Cairo   Yes
+-- Use Pango                Yes
+-- Fl_Cairo_Window support  Yes (extended)
+-- Use std::                Yes
+
+-- End of Configuration Summary --
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

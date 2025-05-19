@@ -1,0 +1,45 @@
+# Maintainer: Simon Rupf <simon@rupf.net>
+pkgname=sequoia-chameleon-gnupg
+pkgver=0.10.1
+pkgrel=0
+pkgdesc="Sequoia's reimplementation of the GnuPG interface"
+url="https://sequoia-pgp.org/"
+# ring
+arch="all !ppc64le !s390x !riscv64"
+license="GPL-3.0-or-later"
+makedepends="
+	bzip2-dev
+	cargo
+	cargo-auditable
+	clang-dev
+	nettle-dev
+	openssl-dev
+	sqlite-dev
+	"
+source="https://gitlab.com/sequoia-pgp/sequoia-chameleon-gnupg/-/archive/v$pkgver/sequoia-chameleon-gnupg-v$pkgver.tar.gz
+	"
+builddir="$srcdir/$pkgname-v$pkgver"
+options="net !check" # bunch of failures against gpg cli
+
+prepare() {
+	default_prepare
+
+	cargo fetch --target="$CTARGET" --locked
+}
+
+build() {
+	cargo auditable build --release --frozen
+}
+
+check() {
+	cargo test --frozen
+}
+
+package() {
+	install -Dm755 target/release/gpgv-sq target/release/gpg-sq \
+		-t "$pkgdir"/usr/bin
+}
+
+sha512sums="
+a8c07b4b342957a47be9a007646b17f8b04d6d6110ec65b662c838dce815462886bf201b243d5f5a94d45b661abf9c3f0c422de75ec34106e4403863934309fd  sequoia-chameleon-gnupg-v0.10.1.tar.gz
+"

@@ -1,0 +1,52 @@
+# Contributor: Francesco Camuffo <dev@fmac.xyz>
+# Maintainer: Celeste <cielesti@protonmail.com>
+pkgname=ugrep
+pkgver=6.4.1
+pkgrel=0
+pkgdesc="Ultra fast grep with interactive query UI and fuzzy search"
+url="https://ugrep.com/"
+arch="all"
+license="BSD-3-Clause"
+checkdepends="bash"
+makedepends="
+	brotli-dev
+	bzip2-dev
+	bzip3-dev
+	linux-headers
+	lz4-dev
+	pcre2-dev
+	xz-dev
+	zlib-dev
+	zstd-dev
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-bash-completion
+	$pkgname-fish-completion
+	$pkgname-zsh-completion
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/Genivia/ugrep/archive/refs/tags/v$pkgver.tar.gz"
+
+build() {
+	CXXFLAGS="$CXXFLAGS -O2 -flto=auto" \
+	./configure \
+		--build=$CBUILD \
+		--host=$CHOST \
+		--prefix=/usr \
+		--sysconfdir=/etc \
+		--mandir=/usr/share/man \
+		--with-bzip3
+	make
+}
+
+check() {
+	make test
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
+
+sha512sums="
+be546b1bf8571a6110e9b6a6259351ca71ac6abe0c090ae6019150c99f3b7377c009fcad20c11a2ee72bc5a17bb71c4a16008462b5462514e73924b208f48e0f  ugrep-6.4.1.tar.gz
+"

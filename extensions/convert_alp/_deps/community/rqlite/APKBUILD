@@ -1,0 +1,60 @@
+# Maintainer: Celeste <cielesti@protonmail.com>
+pkgname=rqlite
+pkgver=8.28.3
+pkgrel=0
+pkgdesc="Lightweight, distributed relational database built on SQLite"
+url="https://github.com/rqlite/rqlite"
+arch="all"
+license="MIT"
+makedepends="go sqlite-dev"
+checkdepends="python3 py3-requests"
+options="chmod-clean net !check" # a bunch of them fail due to runtime requirements
+subpackages="
+	$pkgname-doc
+	$pkgname-bench
+	$pkgname-client
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/rqlite/rqlite/archive/refs/tags/v$pkgver.tar.gz"
+
+export GOFLAGS="$GOFLAGS -tags=libsqlite3"
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	go build ./cmd/rqbench &
+	go build ./cmd/rqlite &
+	go build ./cmd/rqlited &
+	wait
+}
+
+check() {
+	RQLITED_PATH="$builddir"/rqlited python3 system_test/full_system_test.py
+}
+
+package() {
+	install -Dm755 rqbench rqlite rqlited \
+		-t "$pkgdir"/usr/bin/
+
+	install -Dm644 DOC/*.md \
+		-t "$pkgdir"/usr/share/doc/$pkgname/
+
+	install -Dm644 LICENSE \
+		-t "$pkgdir"/usr/share/licenses/$pkgname/
+}
+
+bench() {
+	pkgdesc="$pkgdesc (benchmark utility)"
+
+	amove usr/bin/rqbench
+}
+
+client() {
+	pkgdesc="$pkgdesc (client)"
+
+	amove usr/bin/rqlite
+}
+
+sha512sums="
+371419a91ac2d23593505f1893e09facefc6b41ee73cfecfab87717753bb0cf5771f137412587b29ec4f542400fb79a76f6f6c695482e6d80cceafc1bba6a867  rqlite-8.28.3.tar.gz
+"

@@ -1,0 +1,59 @@
+# Contributor: lauren n. liberda <lauren@selfisekai.rocks>
+# Maintainer: lauren n. liberda <lauren@selfisekai.rocks>
+pkgname=simdutf
+pkgver=5.3.6
+pkgrel=0
+pkgdesc="Unicode validation and transcoding at billions of characters per second"
+url="https://simdutf.github.io/simdutf/"
+arch="all"
+makedepends="
+	cmake
+	samurai
+	"
+license="Apache-2.0 OR MIT"
+subpackages="
+	$pkgname-dev
+	$pkgname-doc
+	fastbase64
+	sutf
+	"
+source="https://github.com/simdutf/simdutf/archive/v$pkgver/simdutf-$pkgver.tar.gz"
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		local crossopts="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_SHARED_LIBS=ON \
+		-DCMAKE_BUILD_TYPE=None \
+		$crossopts
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+
+	install -Dm644 LICENSE-MIT -t "$pkgdir"/usr/share/licenses/$pkgname/
+}
+
+doc() {
+	amove usr/share/licenses
+}
+
+fastbase64() {
+	amove usr/bin/fastbase64
+}
+
+sutf() {
+	amove usr/bin/sutf
+}
+
+sha512sums="
+a41da86c8b98b5b37e274e471f97ac710c08b640860b29ea9fc6320db9e57c5d012c7dc3dfdea6890844c77820db3d3d1baaf97ce2b10a78418032e3f43d3923  simdutf-5.3.6.tar.gz
+"

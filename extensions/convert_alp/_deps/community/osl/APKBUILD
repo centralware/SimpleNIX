@@ -1,0 +1,98 @@
+# Contributor: Damian Kurek <starfire24680@gmail.com>
+# Maintainer: Leon Marz <main@lmarz.org>
+pkgname=osl
+pkgver=1.13.10.0
+pkgrel=0
+pkgdesc="Advanced shading language for production GI renderers"
+options="!check" # All tests fail
+url="https://opensource.imageworks.com/osl.html"
+# armhf armv7 x86: only supports 64-bit
+# s390x: blocked by openimageio
+arch="all !armhf !armv7 !s390x !x86"
+license="BSD-3-Clause"
+_llvmver=18
+makedepends="cmake
+	bison
+	boost-dev
+	clang$_llvmver-dev
+	flex-dev
+	fmt-dev
+	lld
+	llvm$_llvmver-dev
+	llvm$_llvmver-libs
+	openexr-dev
+	openimageio-dev
+	openimageio-tools
+	pugixml-dev
+	python3-dev
+	py3-pybind11-dev
+	qt6-qtbase-dev
+	samurai
+	zlib-dev
+	"
+subpackages="
+	$pkgname-libs
+	$pkgname-dev
+	$pkgname-doc
+	$pkgname-python
+	openimageio-plugin-osl:_osl
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/imageworks/OpenShadingLanguage/archive/v$pkgver.tar.gz
+	fix-install.patch
+	"
+builddir="$srcdir/OpenShadingLanguage-$pkgver"
+
+build() {
+	if [ "$CBUILD" != "$CHOST" ]; then
+		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
+	fi
+
+	cmake -B build -G Ninja -Wno-dev \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_CXX_STANDARD=17 \
+		-DCMAKE_SKIP_RPATH=ON \
+		-DLLVM_ROOT="/usr/lib/llvm$_llvmver" \
+		-DLLVM_BC_GENERATOR="/usr/bin/clang++-$_llvmver" \
+		-DLLVM_AS_TOOL="/usr/lib/llvm$_llvmver/bin/llvm-as" \
+		-DLLVM_LINK_TOOL="/usr/lib/llvm$_llvmver/bin/llvm-link" \
+		-DLLVM_STATIC=OFF \
+		-DOSL_BUILD_TESTS="$(want_check && echo ON || echo OFF)" \
+		$CMAKE_CROSSOPTS
+	cmake --build build
+}
+
+check() {
+	cd build
+	# Broken tests
+	CTEST_OUTPUT_ON_FAILURE=TRUE ctest
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+python() {
+	pkgdesc="Python3 bindings for OSL"
+	depends=""
+	amove usr/lib/python3*
+}
+
+doc() {
+	default_doc
+	# Example shaders
+	amove usr/share/OSL/shaders/*.osl
+	amove usr/share/OSL/shaders/*.oso
+}
+
+_osl() {
+	pkgdesc="Plugin to access OSL from OpenImageIO"
+	depends=""
+	amove usr/lib/osl.imageio.so
+}
+
+sha512sums="
+f005b8797a7bb882bcdf4fd644551d42c150956baa8dd9deff39ff1121321f33b8e144a9a96ac940ae6bf60985c6131457131baa87c73c2b498298aaa77c3c7d  osl-1.13.10.0.tar.gz
+6e640dc2b6814968306bc11aed89055dd87e1668544128c3665afbc6f5c2e0c3b7a30c24e85467ec1679da815dadb878a6825a9e01dd50af2570b3e548115bfb  fix-install.patch
+"

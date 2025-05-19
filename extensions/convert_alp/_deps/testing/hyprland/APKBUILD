@@ -1,0 +1,93 @@
+# Contributor: Zach DeCook <zachdecook@librem.one>
+# Maintainer: Zach DeCook <zachdecook@librem.one>
+pkgname=hyprland
+pkgver=0.42.0
+pkgrel=0
+_commit="9a09eac79b85c846e3a865a9078a3f8ff65a9259"
+pkgdesc="Independent, highly customizable, dynamic tiling Wayland compositor that doesn't sacrifice on its looks."
+url="https://hyprland.org"
+arch="all"
+license="BSD-3-Clause"
+source="
+	https://github.com/hyprwm/Hyprland/archive/v$pkgver/Hyprland-v$pkgver.tar.gz
+	use-system-installed-udis86.patch
+	strncpy-include-cstring.patch
+	"
+builddir="$srcdir/Hyprland-$pkgver"
+makedepends="
+	aquamarine-dev
+	cairo-dev
+	cmake
+	elogind-dev
+	hyprcursor-dev>=0.1.9
+	hyprland-protocols
+	hyprlang
+	hyprutils-dev
+	hyprwayland-scanner
+	jq
+	libdrm-dev
+	libinput-dev
+	libliftoff-dev
+	libxcb-dev
+	libxcursor-dev
+	libxkbcommon-dev
+	mesa-dev
+	meson
+	ninja
+	pango-dev
+	pixman-dev
+	tomlplusplus-dev
+	udis86-git-dev
+	vulkan-loader-dev
+	wayland-dev
+	wayland-protocols
+	xcb-util-errors-dev
+	xcb-util-image-dev
+	xcb-util-renderutil-dev
+	xcb-util-wm-dev
+	xkeyboard-config-dev
+	xwayland-dev
+	"
+subpackages="
+	$pkgname-doc
+	$pkgname-dev
+	$pkgname-wallpapers::noarch
+	$pkgname-bash-completion
+	$pkgname-fish-completion
+	$pkgname-zsh-completion
+	"
+
+prepare() {
+	default_prepare
+	# Set some variables in version.h.in
+	sed -i "s/@HASH@/$_commit/" "$builddir"/src/version.h.in
+	sed -i "s/@BRANCH@/build-alpine/" "$builddir"/src/version.h.in
+	message="with patches: $(printf %s "$source" | grep '.patch$' | tr '\n' ' ')"
+	sed -i "s~@MESSAGE@~$message~" "$builddir"/src/version.h.in
+	sed -i "s/@TAG@/v$pkgver/" "$builddir"/src/version.h.in
+}
+
+build() {
+	abuild-meson . output
+	meson compile -C output
+}
+
+check() {
+	meson test --no-rebuild -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+wallpapers() {
+	pkgdesc="Wallpapers for Hyprland"
+
+	amove usr/share/hypr/wall*.png
+}
+
+sha512sums="
+695d2f6ffc43e9e0620154c32e52a451492e3d093fe08d671273a56af219d38f7d061402997b6da53c95c15ab68caaa652fc8964bfaefd248f48ae62989ae544  Hyprland-v0.42.0.tar.gz
+d2f7b35552fa0a3e992b9050f7066d983b3b7c193a888018b2e0d6fa9e17fc3deff922fa3989d0bb79e8bd82df2bc16ff0c27a82759ad0ce2e72789506eb07db  use-system-installed-udis86.patch
+52ca7d010e39a90e1d8a9c6031f162de5b61d8a7fce6ed854b15e98dfa017f29ec3ac1850fcf70e9012f0d8bb6a7b8d1c54e3454dd9d03f8edf08c2ccee5650f  strncpy-include-cstring.patch
+"

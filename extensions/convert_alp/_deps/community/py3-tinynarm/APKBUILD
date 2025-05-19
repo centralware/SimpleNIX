@@ -1,0 +1,39 @@
+# Contributor: Iztok Fister, Jr. <iztok@iztok-jr-fister.eu>
+# Maintainer: Iztok Fister, Jr. <iztok@iztok-jr-fister.eu>
+pkgname=py3-tinynarm
+pkgver=0.2.2
+pkgrel=0
+pkgdesc="Simplify numerical association rule mining"
+url="https://gitlab.com/firefly-cpp/tinynarm"
+arch="noarch"
+license="MIT"
+depends="python3 py3-niaarm"
+makedepends="py3-poetry-core py3-gpep517"
+checkdepends="py3-pytest-xdist"
+subpackages="$pkgname-doc $pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://gitlab.com/firefly-cpp/tinynarm/-/archive/$pkgver/tinynarm-$pkgver.tar.gz"
+builddir="$srcdir/tinynarm-$pkgver"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest -n auto
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/tinynarm-$pkgver-py3-none-any.whl
+
+	install -Dm644 CITATION.cff -t "$pkgdir"/usr/share/doc/$pkgname
+	install -Dm644 README.md -t "$pkgdir"/usr/share/doc/$pkgname
+}
+
+sha512sums="
+79aa79036a05b62cb79d05d4cfdc946b15d3a793d71bd22f722eb41296e90b20330c74f180faedd4391ea0f3a4e8b0ae39f75d5ecf1bdaa04a319e90f8982fc8  py3-tinynarm-0.2.2.tar.gz
+"

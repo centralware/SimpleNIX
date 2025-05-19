@@ -1,0 +1,50 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: Bart Ribbers <bribbers@disroot.org>
+pkgname=picard
+pkgver=2.12.1
+pkgrel=0
+# armhf blocked by qt5-qtdeclarative
+arch="all !armhf"
+url="https://picard.musicbrainz.org/"
+pkgdesc="Official MusicBrainz tagger"
+license="GPL-2.0-or-later"
+depends="
+	chromaprint
+	py3-dateutil
+	py3-fasteners
+	py3-mutagen
+	py3-qt5
+	py3-yaml
+	"
+makedepends="
+	gettext
+	py3-gpep517
+	py3-setuptools
+	py3-wheel
+	python3-dev
+	"
+checkdepends="py3-pytest"
+subpackages="$pkgname-lang $pkgname-pyc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/metabrainz/picard/archive/release-$pkgver.tar.gz"
+builddir="$srcdir/picard-release-$pkgver"
+
+build() {
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	python3 -m venv --clear --without-pip --system-site-packages .testenv
+	.testenv/bin/python3 -m installer .dist/*.whl
+	.testenv/bin/python3 -m pytest
+}
+
+package() {
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+}
+
+sha512sums="
+7b1fc5b29f663c3672297902d4174db68c7b1969efb06f6831cbd53d032dd0d6c908c121a8fdd65c356134c97f8ff56265bd12ee1eaf99f8a1603c8d2e20a2a1  picard-2.12.1.tar.gz
+"

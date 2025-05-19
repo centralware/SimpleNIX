@@ -1,0 +1,35 @@
+# Maintainer: Patrycja Rosa <alpine@ptrcnull.me>
+pkgname=tauri-cli
+pkgver=1.6.0
+pkgrel=0
+pkgdesc="Tauri cargo cli tool"
+url="https://github.com/tauri-apps/tauri"
+# tauri doesn't support the others anyway
+arch="aarch64 armv7 x86 x86_64"
+license="Apache-2.0 OR MIT"
+makedepends="
+	bzip2-dev
+	cargo
+	cargo-auditable
+	openssl-dev
+	"
+source="$pkgname-$pkgver.tar.gz::https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v$pkgver/tauri-cli-$pkgver.crate"
+options="net !check" # no tests
+
+
+prepare() {
+	default_prepare
+	cargo fetch --target="$CTARGET" --locked
+}
+
+build() {
+	cargo auditable build --release --frozen --no-default-features --features "native-tls"
+}
+
+package() {
+	install -Dm755 target/release/cargo-tauri -t "$pkgdir"/usr/bin/
+}
+
+sha512sums="
+3b6bf2cdb42a2bcfa0ed5f3ed2601d9cd6015cb05c1ec0a8bfd4bdb0d06708dddb4987ba2ff183f034d204c816368416635a5edce1cdff4876cbc1bcdeaab500  tauri-cli-1.6.0.tar.gz
+"

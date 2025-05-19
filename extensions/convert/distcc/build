@@ -1,0 +1,131 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions; cpuType
+
+APP_NAME="distcc"
+APP_DESC="Distributed Compiler DISTcc"
+APP_DEPS=""
+
+BLD_EXTS="extload automake clang coreutils gettext-dev git gtk3-dev libtool-dev \
+          lld procps-ng python3.9-setuptools python3.9-dev python3.9 popt-dev \
+          squashfs-tools compiletc wget"
+
+showapp "$APP_DESC"
+
+prepare()
+{
+    extload $BLD_EXTS
+}
+
+get_version()
+{
+    if [ ! -f $CUR/versions.lst ]; then
+        HOST="https://github.com/distcc/distcc/tags"
+        mkdir -p $CUR/tmp; cd $CUR/tmp
+        touch test; rm * -f
+        [ ! -f tags ] && wget -q --no-check-certificate $HOST
+        [ ! -f index ] && cat tags | grep "/releases/tag/" | awk -F"href=" '{print $2}' > index
+        cat index | awk -F"\"" '{print $2}' | awk -F "tag" '{print $2}' | awk -F "/" '{print $2}' > index2
+        sed -i 's/v//g' index2; sed -i 's/c//g' index2
+        cat index2 | sort -n > $CUR/versions.lst
+        cd $CUR; rm $CUR/tmp -fR
+    fi
+    VERSION=$(tail -n 1 $CUR/versions.lst)
+}
+
+get_sources()
+{
+    mkdir -p $CUR/log
+    if [ ! -d $CUR/src/distcc ]; then
+        echo "${CYAN}Downloading Sources${NORMAL}"
+        mkdir -p $CUR/src; cd $CUR/src
+        wget -q --no-check-certificate https://github.com/distcc/distcc/releases/download/v${VERSION}/distcc-${VERSION}.tar.gz
+    fi
+
+    if [ ! -d $CUR/src/distcc-${VERSION} ]; then
+        echo "${CYAN}Extracting Sources${NORMAL}"
+        tar -zxf distcc-${VERSION}.tar.gz || exit
+    fi
+
+    if [ ! -d $CUR/src/_patches ]; then
+        echo "${CYAN}Downloading Patches${NORMAL}"
+        mkdir -p $CUR/src/_patches; cd $CUR/src/_patches
+        wget -q --no-check-certificate http://repo.tinycorelinux.net/15.x/armhf/tcz/src/distcc/distcc.path.patch
+        wget -q --no-check-certificate http://repo.tinycorelinux.net/15.x/armhf/tcz/src/distcc/distcc.void.patch
+    fi
+}
+
+do_configure()
+{
+    cd $CUR/src/distcc-${VERSION}
+
+    if [ ! -f ./.patched ]; then
+        echo "${CYAN}Patching Sources${NORMAL}"
+        patch -Np1 < ../_patches/distcc.void.patch >>$CUR/log/_patches.log 2>&1
+        patch -Np1 < ../_patches/distcc.path.patch >>$CUR/log/_patches.log 2>&1
+        touch ./.patched
+    fi
+
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring v${VERSION}${NORMAL}"
+        ./autogen.sh >$CUR/log/_autogen.log 2>&1 || exit 1
+        ./configure --prefix=/usr/local --without-libiberty >$CUR/log/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+}
+
+do_compile()
+{
+    echo "${CYAN}Compiling${NORMAL}"
+    cd $CUR/src/distcc-${VERSION}
+    make -j$(nproc) > $CUR/log/_compile.log 2>&1 || exit 1
+    stripper $CUR/src/distcc
+}
+
+do_install()
+{
+    echo "${CYAN}Installing${NORMAL}"
+    cd $CUR/src/distcc-${VERSION}
+    [ -d $CUR/bin/${VERSION}/${CPU} ] && sudo rm $CUR/bin/${VERSION}/${CPU} -fR
+    make DESTDIR=$CUR/bin/${VERSION}/${CPU} install >$CUR/log/_install.log 2>&1 || exit 1
+}
+
+do_package()
+{
+    echo "${CYAN}Packaging${NORMAL}"
+    cd $CUR/bin/${VERSION}/${CPU}
+    tar -zcf $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz *
+    mv $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz $REPO
+}
+
+################################
+ ###                        ###
+  ### COMMAND LINE OPTIONS ###
+ ###                        ###
+################################
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                clean) DO_CLEAN=1 ;;
+            esac ;;
+    esac
+done
+
+
+
+prepare
+[ "${VERSION}" == "" ] && get_version
+echo "Version: $VERSION"
+[ ! "${DO_CLEAN}" == "" ] && rm $CUR/src/${APP_NAME}-${VERSION} -fR >/dev/null 2>&1
+get_sources
+do_configure
+do_compile
+do_install
+do_package
+
+echo "${GREEN}Done.${NORMAL}"

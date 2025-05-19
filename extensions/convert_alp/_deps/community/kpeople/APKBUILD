@@ -1,0 +1,53 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-frameworks
+pkgname=kpeople
+pkgver=6.5.0
+pkgrel=0
+pkgdesc="A library that provides access to all contacts and the people who hold them"
+arch="all !armhf" # armhf blocked by qt6-qtdeclarative
+url="https://community.kde.org/Frameworks"
+license="LGPL-2.1-or-later"
+depends="qt6-qtbase-sqlite"
+depends_dev="
+	kcontacts-dev
+	kcoreaddons-dev
+	ki18n-dev
+	kitemviews-dev
+	kservice-dev
+	kwidgetsaddons-dev
+	qt6-qtdeclarative-dev
+	"
+makedepends="$depends_dev
+	doxygen
+	extra-cmake-modules
+	qt6-qttools-dev
+	samurai
+	"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-lang"
+_repo_url="https://invent.kde.org/frameworks/kpeople.git"
+source="https://download.kde.org/stable/frameworks/${pkgver%.*}/kpeople-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_QCH=ON
+	cmake --build build
+}
+
+check() {
+	# personsmodeltest fails
+	ctest --test-dir build --output-on-failure -E '(personsmodeltest)'
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+4c857b589b53e8ef8191c418c18a355f2e3f636c35be8688aa68e339ce4ab66faade3cb48f16960de933d5f60e3e3ad13977fb85a15d106243642919d6cc8eaf  kpeople-6.5.0.tar.xz
+"

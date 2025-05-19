@@ -1,0 +1,54 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-frameworks
+pkgname=kdesu
+pkgver=6.5.0
+pkgrel=0
+pkgdesc="Integration with su for elevated privileges"
+# armhf blocked by extra-cmake-modules
+arch="all !armhf"
+url="https://community.kde.org/Frameworks"
+license="LGPL-2.1-only"
+depends_dev="
+	kcoreaddons-dev
+	ki18n-dev
+	kpty-dev
+	kservice-dev
+	"
+makedepends="$depends_dev
+	doxygen
+	extra-cmake-modules
+	qt6-qttools-dev
+	samurai
+	"
+checkdepends="xvfb-run"
+subpackages="$pkgname-dev $pkgname-doc $pkgname-lang"
+_repo_url="https://invent.kde.org/frameworks/kdesu.git"
+source="https://download.kde.org/stable/frameworks/${pkgver%.*}/kdesu-$pkgver.tar.xz"
+# Since the goal of this library is to elevate privileges, suid being needed should be obvious
+options="suid"
+
+[ "$CARCH" = "ppc64le" ] && options="$options !check" # kdesutest is broken
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_QCH=ON
+	cmake --build build
+}
+
+check() {
+	xvfb-run ctest --test-dir build --output-on-failure -E "kdesutest"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+32f40abb9fb5c15e729d9a5e0aba0e6b000e0c80b2dcb822f651ef5276daa2e1f3b05f80cf137779c77cffffdd0255c45ec3b31b4eb3198fb9772161076a8822  kdesu-6.5.0.tar.xz
+"

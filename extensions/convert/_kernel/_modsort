@@ -1,0 +1,154 @@
+#!/bin/bash -e
+
+# 1.   make INSTALL_MOD_PATH=/tmp/somewhere/usr/local modules_install
+# 2.   Create a new directory where packages are to be created
+# 3.   Run modsort.sh from inside that new directory
+#
+#    Usage:          ./modsort.sh KERNEL PATH
+#    Example:        ./modsort.sh 6.6.8-simple64 /tmp/somewhere
+#
+# Concept brought in from Tiny Core Linux
+# Requires squashfs-tools
+
+
+modpack() {
+    cd $BASEPATH
+    OLDDIR=$OLDPWD
+    MODFILE=$1
+    shift
+
+    rm -rf /tmp/xtra
+    > /tmp/list
+    for i in $@
+    do
+        find usr/local/lib/modules/$KERNEL/kernel/${i} -type f >> /tmp/list
+    done
+
+    tar -cvzf ${OLDDIR}/${MODFILE}.tgz -T /tmp/list
+    for g in `cat /tmp/list`; do rm $g; done
+
+    mkdir /tmp/xtra
+    tar -C /tmp/xtra -xf ${OLDDIR}/${MODFILE}.tgz
+    cd /tmp
+    mksquashfs xtra ${MODFILE}.ext
+    md5sum ${MODFILE}.ext > $OLDDIR/${MODFILE}.md5
+    zsyncmake -u ${MODFILE}.ext ${MODFILE}.ext
+
+    mv ${MODFILE}.ext* $OLDDIR
+
+    find xtra -type f -exec modinfo '{}' \; >> ${OLDDIR}/${MODFILE}.moddeps
+    grep depends: ${OLDDIR}/${MODFILE}.moddeps | cut -d: -f2 | sed -e 's@^[ ]*@@' -e '/^$/d' -e 's@,@\n@g' |
+        sort | uniq > /tmp/tmpdeps
+    mv /tmp/tmpdeps ${OLDDIR}/${MODFILE}.moddeps
+
+    cd xtra
+    find -type f > ${OLDDIR}/${MODFILE}.lst
+
+    rm ${OLDDIR}/${MODFILE}.tgz
+
+    cd $OLDDIR
+
+    # Clean the moddeps up a bit, remove everything in the same file
+    for i in `cat ${MODFILE}.moddeps`
+    do
+        grep -q "${i}.ko" ${MODFILE}.lst && sed -i "/^${i}$/d" ${MODFILE}.moddeps
+    done
+    [ -s ${MODFILE}.moddeps ] || rm ${MODFILE}.moddeps
+}
+
+[ $# -ne 2 ] && echo "Usage: $0 KERNELVER PATH" && exit 1
+KERNEL=$1
+BASEPATH=$2
+
+echo Sorting $KERNEL modules from $BASEPATH
+
+[ ! -e ${BASEPATH}/usr/local/lib/modules/${KERNEL} ] && echo "Check Parameters!" && exit 1
+
+#[ -f ${BASEPATH}/fs/zfs/zfs.ko ] && modpack zfs-$KERNEL fs/zfs drivers/spl
+#[ -f ${BASEPATH}/arch/x86/kvm/kvm.ko ] && modpack kvm-$KERNEL arch/x86/kvm
+
+modpack zfs-$KERNEL fs/zfs
+modpack kvm-$KERNEL arch/x86/kvm
+
+modpack alsa-modules-$KERNEL sound
+modpack bluetooth-$KERNEL net/bluetooth drivers/bluetooth
+modpack net-bridging-$KERNEL net/bridge
+modpack net-sched-$KERNEL net/sched
+modpack ipv6-netfilter-$KERNEL net/ipv6 net/ipv4 net/netfilter
+modpack wireless-$KERNEL net/mac80211 net/wireless drivers/net/wireless
+modpack nouveau-$KERNEL drivers/gpu/drm/nouveau
+modpack graphics-$KERNEL drivers/char/agp drivers/gpu drivers/usb/misc/sisusbvga
+modpack firewire-$KERNEL drivers/firewire
+modpack hwmon-$KERNEL drivers/hwmon
+modpack i2c-$KERNEL drivers/i2c
+modpack raid-dm-$KERNEL drivers/md lib/raid*
+modpack input-joystick-$KERNEL drivers/input/joy* drivers/input/gameport
+modpack input-tablet-touchscreen-$KERNEL drivers/input/tablet drivers/input/touchscreen
+modpack mtd-$KERNEL drivers/mtd
+modpack usb-serial-$KERNEL drivers/usb/misc/uss* drivers/usb/serial
+modpack leds-$KERNEL drivers/leds
+modpack pci-hotplug-$KERNEL drivers/pci/hotplug
+modpack thinkpad-acpi-$KERNEL drivers/platform/x86/thinkpad_acpi*
+modpack watchdog-$KERNEL drivers/watchdog
+modpack ax25-$KERNEL net/ax25 net/rose net/netrom drivers/net/hamradio
+
+#modpack irda-$KERNEL net/irda drivers/net/irda drivers/usb/serial/ir-usb*
+#modpack wimax-$KERNEL net/wimax drivers/net/wimax
+
+# Needs to go to the base.
+mv ${BASEPATH}/usr/local/lib/modules/${KERNEL}/kernel/drivers/scsi/hv_* /tmp
+mv ${BASEPATH}/usr/local/lib/modules/${KERNEL}/kernel/drivers/scsi/scsi_transport_fc* /tmp
+mv ${BASEPATH}/usr/local/lib/modules/${KERNEL}/kernel/drivers/media/cec/core/cec.ko* /tmp
+mv ${BASEPATH}/usr/local/lib/modules/${KERNEL}/kernel/fs/exfat* /tmp
+
+modpack scsi-$KERNEL drivers/scsi drivers/message
+modpack l2tp-$KERNEL net/l2tp
+modpack sctp-$KERNEL net/sctp
+modpack v4l-dvb-$KERNEL drivers/media drivers/usb/misc/isight*
+modpack filesystems-$KERNEL fs/[bcehjmrux]*/* fs/nfsd/* fs/nfs fs/nilfs2
+
+modpack misc-$KERNEL ./
+
+# Meta-extension for original modules
+EMPTYD=`mktemp -d`
+mkdir -p ${EMPTYD}/lib
+ls *.ext > original-modules-$KERNEL.dep
+mksquashfs $EMPTYD original-modules-$KERNEL.ext
+md5sum original-modules-$KERNEL.ext > original-modules-$KERNEL.md5
+zsyncmake -u original-modules-$KERNEL.ext original-modules-$KERNEL.ext
+rm -rf $EMPTYD
+
+# The rest goes to the base.
+mv /tmp/hv_* /tmp/scsi_transport_fc* /tmp/cec.ko* /tmp/exfat* ${BASEPATH}/usr/local/lib/modules/${KERNEL}/kernel/drivers/scsi/
+cd ${BASEPATH}/usr/local
+ln -sf /usr/local/lib/modules/${KERNEL}/kernel/ lib/modules/${KERNEL}/kernel.tclocal
+mkdir -p usr/local/lib/modules/${KERNEL}/kernel/
+find lib/modules ! -type d > /tmp/list
+echo usr/local/lib/modules/${KERNEL}/kernel/ >> /tmp/list
+tar cvzf ${OLDPWD}/base_modules.tgz -T /tmp/list
+
+cd -
+
+cp /tmp/list base_modules.tgz.list
+
+# Is it 64-bit?
+is64=
+case $KERNEL in *64) is64=64 ;; esac
+
+# Also convert it to the cpio initrd format
+mkdir tmp
+cd tmp
+tar xf ../base_modules.tgz
+depmod -a -b . ${KERNEL}
+rm -f lib/modules/${KERNEL}/*map
+rm lib/modules/${KERNEL}/modules.symbols
+find lib usr | cpio -o -H newc | gzip -9 > ../modules${is64}.gz
+
+cd ..
+rm -rf tmp
+
+# Some final moddeps cleanup
+for i in `grep gz base_modules.tgz.list | sed -e 's@.*/@@' -e 's@.ko.gz@@'`; do sed "/^$i\$/d" *moddeps -i; done
+for i in *moddeps; do [ -s $i ] || rm $i; done
+
+echo -e "\n\n"'Done!'

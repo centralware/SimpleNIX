@@ -1,0 +1,112 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions
+
+APP_NAME="dovecot"
+APP_DESC="Dovecot Mail Server"
+APP_HOST=""
+APP_DEPS=""
+
+VHOST="https://github.com/dovecot/core/tags"
+
+BLD_EXTS="compiletc squashfs-tools wget openssl-dev openssl openldap-dev libcap-dev"
+
+export LD_LIBRARY_PATH=/usr/local/lib && sudo ldconfig -l
+
+OPTIMIZE="-Os" cpuType
+
+#VERSION=2.3.21.1
+
+showapp "$APP_DESC"
+
+prepare()
+{
+    extload $BLD_EXTS
+}
+
+get_version()
+{
+    if [ ! -f $CUR/versions.lst ]; then
+        extload quiet wget
+        mkdir -p $CUR/dl; cd $CUR/dl
+        [ ! -f tags ] && wget -q --no-check-certificate $VHOST
+        cat tags | grep "releases/tag/" | grep "href=" | awk -F"href=" '{print $2}' > index
+        cat index | awk -F"\"" '{print $2}' | awk -F"/tag/" '{print $2}'> $CUR/versions.lst
+        rm tags index -f
+    fi
+    VERSION=$(head -n 1 $CUR/versions.lst)
+}
+
+get_sources()
+{
+    extload quiet wget
+    mkdir -p $CUR/src $CUR/dl; cd $CUR/dl
+    if [ ! -f dovecot-${VERSION}.tar.gz ]; then
+        echo "${CYAN}Downloading v${VERSION} Sources${NORMAL}"
+#       wget -q --no-check-certificate https://github.com/dovecot/core/releases/download/${VERSION}/dovecot-${VERSION}.tar.gz
+        VER=$(echo $VERSION | awk -F. '{print $1"."$2}')
+        wget -q --no-check-certificate https://www.dovecot.org/releases/${VER}/dovecot-${VERSION}.tar.gz
+    fi
+    [ ! -d $CUR/src/dovecot-${VERSION} ] && cd $CUR/src && tar -zxf $CUR/dl/dovecot-${VERSION}.tar.gz
+}
+
+do_configure()
+{
+    echo "${CYAN}Configuring v${VERSION}${NORMAL}"
+    cd $CUR/src/${APP_NAME}-${VERSION}
+    ./configure --enable-maintainer-mode $SSL > $CUR/_configure.log 2>&1 || exit 1
+}
+
+do_compile()
+{
+    echo "${CYAN}Compiling${NORMAL}"
+    cd $CUR/src/${APP_NAME}-${VERSION}
+    make clean >/dev/null 2>&1
+    make -j40 > $CUR/_compile.log 2>&1 || exit 1
+}
+
+do_install()
+{
+    echo "${CYAN}Installing${NORMAL}"
+    [ -d $CUR/bin/${VERSION} ] && sudo rm $CUR/bin/${VERSION} -fR
+    make DESTDIR=$CUR/bin/${VERSION} install > $CUR/_install.log 2>&1 || exit 1
+}
+
+do_package()
+{
+    echo "${CYAN}Packaging${NORMAL}"
+    cd $CUR/bin/${VERSION}
+    tar -zcf $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz *
+    mv $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz $REPO
+}
+
+################################
+ ###                        ###
+  ### COMMAND LINE OPTIONS ###
+ ###                        ###
+################################
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                clean) DO_CLEAN=1 ;;
+            esac ;;
+    esac
+done
+
+
+
+prepare
+[ "${VERSION}" == "" ] && get_version
+[ ! "${DO_CLEAN}" == "" ] && rm $CUR/src/${APP_NAME}-${VERSION} -fR >/dev/null 2>&1
+get_sources
+do_configure
+do_compile
+do_install
+do_package
+
+echo "${GREEN}Done.${NORMAL}"

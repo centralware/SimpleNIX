@@ -1,0 +1,37 @@
+# Contributor: Michał Polański <michal@polanski.me>
+# Maintainer: Michał Polański <michal@polanski.me>
+pkgname=aardvark-dns
+pkgver=1.12.1
+pkgrel=0
+pkgdesc="Authoritative DNS server for A/AAAA container records"
+url="https://github.com/containers/aardvark-dns"
+license="Apache-2.0"
+# s390x: fails to build due to nix crate
+# loongarch64: rust nix does not support
+arch="all !s390x !loongarch64"
+makedepends="cargo"
+source="https://github.com/containers/aardvark-dns/archive/v$pkgver/aardvark-dns-$pkgver.tar.gz"
+options="net"
+
+prepare() {
+	default_prepare
+
+	cargo fetch --target="$CTARGET" --locked
+}
+
+build() {
+	cargo build --release --frozen
+}
+
+check() {
+	cargo test --frozen
+}
+
+package() {
+	install -Dm755 target/release/aardvark-dns \
+		-t "$pkgdir"/usr/libexec/podman/
+}
+
+sha512sums="
+63e10296b97791d23ae8714af99bc533bf01c4a584bc8bd9e2b935785a61eed58f96bb1e369fb46ed45dcc5ca0740fc3264315ad584a32212b49f5ee8e524881  aardvark-dns-1.12.1.tar.gz
+"

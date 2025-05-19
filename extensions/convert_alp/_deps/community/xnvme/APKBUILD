@@ -1,0 +1,48 @@
+# Contributor: Duncan Bellamy <dunk@denkimushi.com>
+# Maintainer: Duncan Bellamy <dunk@denkimushi.com>
+pkgname=xnvme
+pkgver=0.7.4
+pkgrel=2
+pkgdesc="cross-platform libraries and tools for NVMe devices"
+url="https://xnvme.io"
+# 32bit unsupported
+arch="all !armhf !armv7 !x86"
+license="BSD-3-Clause"
+makedepends="bsd-compat-headers libaio-dev liburing-dev linux-headers meson py3-gpep517 py3-setuptools py3-wheel"
+subpackages="py3-$pkgname-pyc py3-$pkgname:_python:noarch $pkgname-dev $pkgname-doc"
+source="$pkgname-$pkgver-1.tar.gz::https://github.com/xnvme/xnvme/archive/refs/tags/v$pkgver.tar.gz"
+case "$CARCH" in
+aarch64|x86_64) makedepends="$makedepends libvfn-dev" ;;
+esac
+
+build() {
+	abuild-meson -Dexamples=false -Dwith-spdk=false \
+		. output
+	meson compile -C output
+
+	cd python/bindings
+	gpep517 build-wheel \
+		--wheel-dir .dist \
+		--output-fd 3 3>&1 >&2
+}
+
+check() {
+	meson test --no-rebuild --print-errorlogs -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+
+	cd python/bindings
+	python3 -m installer -d "$pkgdir" \
+		.dist/*.whl
+	rm -r "$pkgdir"/usr/lib/python3*/site-packages/xnvme/ctypes_bindings/tests
+}
+
+_python() {
+	amove usr/lib/python*
+}
+
+sha512sums="
+407ea6695dc074e46c1a9666bc58ec05b4c7d5da272b991442d712558319b29246fe42572c7e105a72c0abfdff3e15919e60280591b60305a98331739bb8b84e  xnvme-0.7.4-1.tar.gz
+"

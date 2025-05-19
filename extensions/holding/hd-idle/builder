@@ -1,0 +1,76 @@
+#!/bin/sh
+. /etc/system/functions; CUR=$(pwd); clear
+
+APPNAME="hd-idle"
+VERSION="1.05"
+
+echo > $CUR/_${APPNAME}.log 2>&1
+
+echo "${CYAN}Loading support extensions${NORMAL}"
+EXTS="wget compiletc squashfs-tools"
+for EXT in $EXTS
+do
+    EXT=${EXT/.tcz/}
+    [ ! -f /etc/sysconfig/tcedir/optional/${EXT}.tcz ] && tce-load -w $EXT >/dev/null 2>&1
+    [ ! -d /tmp/tcloop/${EXT} ] && tce-load -i $EXT >/dev/null 2>&1
+done
+
+mkdir -p ${CUR}/src; cd ${CUR}/src
+
+if [ ! -f ${APPNAME}-${VERSION}.tgz ]; then
+    echo "${CYAN}Downloading source tarball${NORMAL}"
+    wget -q -O ${APPNAME}-${VERSION}.tgz https://sourceforge.net/projects/${APPNAME}/files/${APPNAME}-${VERSION}.tgz/download >> $CUR/_${APPNAME}.log 2>&1 || exit 1
+fi
+
+if [ ! -d ${APPNAME} ]; then
+    echo "${CYAN}Extracting source tarball${NORMAL}"
+    tar -zxf ${APPNAME}-${VERSION}.tgz >> $CUR/_${APPNAME}.log 2>&1 || exit 1
+fi
+
+cd ${APPNAME}
+cat > Makefile << "EOF"
+# General Definitions
+CC        ?= gcc
+CFLAGS    += $(INC_DIRS) -Wall
+LD         = $(CC)
+LDFLAGS   += $(LIB_DIRS)
+
+# Main Dependencies
+TARGET  = hd-idle
+SRCS    = hd-idle.c
+OBJS    = $(SRCS:.c=.o)
+
+all: $(TARGET)
+distclean: clean
+clean:
+	rm -f $(OBJS) $(TARGET)
+install: $(TARGET)
+	install -D -g root -o root $(TARGET) $(DESTDIR)/usr/local/sbin/$(TARGET)
+	install -D -g root -o root $(TARGET).1 $(DESTDIR)/usr/local/share/man/man1/$(TARGET).1
+hd-idle.o:     hd-idle.c
+$(TARGET): $(OBJS)
+	$(LD) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIB_DIRS) $(LIBS)
+EOF
+
+make clean >> $CUR/_${APPNAME}.log 2>&1 || exit 1
+
+DESTDIR=/tmp/builder/${APPNAME} && export DESTDIR
+
+sudo mkdir -p ${DESTDIR}
+sudo chown tc:staff ${DESTDIR}
+sudo chmod 0777 ${DESTDIR}
+
+echo "${CYAN}Compiling source${NORMAL}"
+make >> $CUR/_${APPNAME}.log 2>&1 || exit 1
+
+echo "${CYAN}Installing source${NORMAL}"
+sudo make DESTDIR=/tmp/builder/${APPNAME} install >> $CUR/_${APPNAME}.log 2>&1 || exit 1
+cd /tmp/builder/${APPNAME}/usr/local/sbin
+sudo strip -s *
+
+
+cd /tmp/builder
+echo "${CYAN}Building binary extension${NORMAL}"
+[ -f $CUR/${APPNAME}.nix ] && sudo rm $CUR/${APPNAME}.nix
+mksquashfs ${APPNAME} $CUR/${APPNAME}.nix >> $CUR/_${APPNAME}.log 2>&1 || exit 1
+

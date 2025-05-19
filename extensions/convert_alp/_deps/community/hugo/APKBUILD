@@ -1,0 +1,57 @@
+# Contributor: Thomas Boerger <thomas@webhippie.de>
+# Contributor: Michał Polański <michal@polanski.me>
+# Maintainer: Thomas Boerger <thomas@webhippie.de>
+pkgname=hugo
+pkgver=0.130.0
+pkgrel=0
+pkgdesc="Fast and flexible static site generator written in Go"
+url="https://gohugo.io/"
+license="Apache-2.0"
+arch="all !loongarch64 !ppc64le !riscv64 !s390x" # fails tests
+makedepends="go"
+checkdepends="asciidoctor npm py3-docutils tzdata"
+subpackages="
+	$pkgname-doc
+	$pkgname-bash-completion
+	$pkgname-fish-completion
+	$pkgname-zsh-completion
+	"
+source="https://github.com/gohugoio/hugo/archive/v$pkgver/hugo-$pkgver.tar.gz
+	skip-para-test.patch
+	skip-tailwindcss-test.patch
+	"
+options="net"
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+
+build() {
+	go build -v -o bin/$pkgname --tags extended
+	./bin/hugo gen man
+	./bin/hugo completion bash > hugo.bash
+	./bin/hugo completion fish > hugo.fish
+	./bin/hugo completion zsh > hugo.zsh
+}
+
+check() {
+	go test ./...
+}
+
+package() {
+	install -Dm755 bin/$pkgname "$pkgdir"/usr/bin/$pkgname
+	install -Dm644 man/*.1 -t "$pkgdir"/usr/share/man/man1
+
+	install -Dm644 hugo.bash \
+		"$pkgdir"/usr/share/bash-completion/completions/hugo
+	install -Dm644 hugo.fish \
+		"$pkgdir"/usr/share/fish/vendor_completions.d/hugo.fish
+	install -Dm644 hugo.zsh \
+		"$pkgdir"/usr/share/zsh/site-functions/_hugo
+}
+
+sha512sums="
+5e89f5a39c637a4f9ade8b46107d73e8947e94d0f20f49780e00e27c9cdf96af8e07dd51363a35716cd9c7b66f87b98d22745b704c703e8cf368da13ed281659  hugo-0.130.0.tar.gz
+6ba192d8cb67f115f7ce596c297a55fc64713a4cdb0077cfbb7e45051c7560f5b668da88f513d4f34d8e0eeb4a9d991c5312d62e454c85e95960d8a33f0f8f69  skip-para-test.patch
+69b7d31b9f32f2bb2530e0e762655cbebc25c2cb2bb072095fff75c49ec1e10a6e870ea505548048bb6d3ae911da6d73fee12a61578a83bb019fceb2d88b5548  skip-tailwindcss-test.patch
+"

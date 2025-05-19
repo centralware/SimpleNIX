@@ -1,0 +1,95 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+# Maintainer: Natanael Copa <ncopa@alpinelinux.org>
+pkgname=bluez-firmware
+pkgver=1.2
+pkgrel=2
+pkgdesc="Firmware for Broadcom BCM203x Blutonium devices"
+url="https://www.bluez.org/"
+arch="all"
+license="GPL-2.0-or-later"
+#source="https://distfiles.alpinelinux.org/distfiles/edge/bluez-firmware-$pkgver.tar.gz"
+source="https://distfiles.alpinelinux.org/distfiles/edge/bluez-firmware-78d6a07730e2d20c035899521ab67726dc028e1c.tar.gz"
+serial="bluez-firmware-78d6a07730e2d20c035899521ab67726dc028e1c"
+dest="bluez-firmware-$pkgver.tar.gz"
+pkgfile="${pkgname}-${pkgver}.tar.gz"
+pkgdir="${pkgname}-${pkgver}"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    echo "Getting current version information..."
+    [ "${pkgver}" == "" ] && get_version
+
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate -O $dest $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -zxf ${pkgfile}
+        mv ${serial} ${pkgdir}
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_depends()
+{
+    echo "Loading compilation dependencies"
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+    if [ ! -f ./.configured ]; then
+        echo "${CYAN}Configuring...${NORMAL}"
+        CPU=$(GetProcessorType)
+        ./configure \
+            --libdir=/lib > \
+            $CUR/_configure.log 2>&1 || exit 1
+        touch ./.configured
+    fi
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) > $CUR/_compile.log 2>&1 || exit 1
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget
+
+src_build
+

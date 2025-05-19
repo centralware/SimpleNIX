@@ -1,0 +1,111 @@
+#!/bin/sh
+clear; CUR=$(pwd); . ../functions; getCPU
+
+APP_NAME="tinycdb"
+APP_DESC="TinyCDB"
+APP_FILE="tinycdb-0.81.tar.gz"
+APP_HOST="https://www.corpit.ru/mjt/tinycdb/${APP_FILE}"
+APP_DEPS=""
+
+BLD_EXTS="compiletc squashfs-tools wget"
+
+#############################
+showapp "$APP_DESC"
+
+prepare()
+{
+    #echo "${CYAN}Preparation${NORMAL}"
+    extload $BLD_EXTS
+}
+
+get_version()
+{
+    ### Last Update 2023-12-25
+    VERSION="0.81"
+}
+
+get_sources()
+{
+    extload quiet wget
+    mkdir -p $CUR/src; cd $CUR/src
+    FILE="${APP_FILE}"
+    HOST="${APP_HOST}"
+    if [ ! -f $CUR/src/${FILE} ]; then
+        echo "${CYAN}Downloading Source ${NORMAL}"
+        wget -q --no-check-certificate $HOST || exit 1
+    fi
+    APP_PATH=${APP_FILE/.tar.gz/}
+    if [ ! -d $CUR/src/${APP_PATH} ]; then
+        tar -zxf $FILE
+    fi
+}
+
+#do_configure()
+#{
+#    echo "${CYAN}Configuring v${VERSION}${NORMAL}"
+#    cd $CUR/src/${APP_NAME}-${VERSION}
+#    ./configure > $CUR/_configure.log 2>&1 || exit 1
+#}
+
+do_compile()
+{
+    echo "${CYAN}Compiling${NORMAL}"
+    cd $CUR/src/${APP_NAME}-${VERSION}
+    make > $CUR/_compile.log 2>&1 || exit 1
+}
+
+do_install()
+{
+    echo "${CYAN}Installing${NORMAL}"
+    [ -d $CUR/bin/${VERSION} ] && sudo rm $CUR/bin/${VERSION} -fR
+    make -j$(nproc) DESTDIR=$CUR/bin/${VERSION} install > $CUR/_install.log 2>&1 || exit 1
+}
+
+do_package()
+{
+    echo "${CYAN}Packaging${NORMAL}"
+    cd $CUR/bin/${VERSION}
+    tar -zcf $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz *
+    mv $CUR/${APP_NAME}-${VERSION}-${CPU}.tar.gz $REPO
+}
+
+################################
+ ###                        ###
+  ### COMMAND LINE OPTIONS ###
+ ###                        ###
+################################
+for i in $@
+do
+    case $i in
+        *=*)
+            case $i in
+                ver*)  VERSION=${i#*=} ;;
+            esac ;;
+        *)
+            case $i in
+                clean) DO_CLEAN=1 ;;
+            esac ;;
+    esac
+done
+
+
+
+prepare
+[ "${VERSION}" == "" ] && get_version
+[ ! "${DO_CLEAN}" == "" ] && rm $CUR/src/${APP_NAME}-${VERSION} -fR >/dev/null 2>&1
+get_sources
+#do_configure
+do_compile
+do_install
+do_package
+
+echo "${GREEN}Done.${NORMAL}"
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,100 @@
+#!/bin/sh
+clear; CUR=$(pwd); OLD=$CUR; . ../functions; cpuType
+APP="binutils"
+VERSION="2.41"
+
+showapp $APP
+SFX=$CPU
+SXX=${SFX/x86_/x}
+
+#echo -n "${CYAN}Loading support extensions:${NORMAL}"
+#ExtClean
+#ExtLoad wget; echo
+extload quiet wget
+
+cd $CUR; mkdir -p $CUR/bin $CUR/src
+[ ! -f $CUR/versions.lst ] && touch $CUR/versions.lst
+
+
+##############
+## binutils ##
+##############
+
+#cd $CUR; echo "${CYAN}Package ${GREEN}${APP}${NORMAL}"
+#echo -n "${CYAN}Loading support extensions:${NORMAL}"
+extload compiletc texinfo
+
+#VERSION=$(cat versions.lst | grep ":${APP}:" | awk -F: '{print $3}')
+if [ ! -f $CUR/versions.lst ]; then
+    echo "  ${YELLOW}Obtaining Current Version${NORMAL}"; mkdir -p $CUR/tmp; sudo rm $CUR/tmp -fR; mkdir -p $CUR/tmp; cd $CUR/tmp
+    wget -q --no-check-certificate https://ftp.gnu.org/gnu/${APP} -O - | grep ${APP} | grep href | grep ".tar.gz" | awk -F "<a " '{print $2}' > index
+    cat index | awk -F "</a" '{print $1}' | awk -F "\"" '{print $2}' > index2
+    cat index2 | grep -v doc | grep -v alpha | grep -v beta | grep -v rc | grep -v ".sig" | grep -v "with" > index3
+    cat index3 | awk -F "${APP}-" '{print $2}' | awk -F ".tar.gz" '{print $1}' > index4
+    cat index4 > $CUR/versions.lst
+    cd $CUR
+    sudo rm tmp -fR
+fi
+[ "${VERSION}" == "" ] && VERSION=$(tail -n 1 $CUR/versions.lst)
+
+sudo ldconfig >/dev/null 2>&1
+
+if [ ! -d $CUR/src/${APP}-${VERSION} ]; then
+    cd $CUR/src
+    if [ ! -f ${APP}-${VERSION}.tar.gz ]; then
+        echo "  ${YELLOW}Obtaining Source Code ${GREEN}${VERSION}${NORMAL}"
+        wget -q --no-check-certificate https://ftp.gnu.org/gnu/${APP}/${APP}-${VERSION}.tar.gz
+    fi
+    echo "  ${YELLOW}Extracting Source Code ${GREEN}${VERSION}${NORMAL}"
+    tar -zxf ${APP}-${VERSION}.tar.gz
+    #rm ${APP}-${VERSION}.tar.gz -f
+fi
+
+cd $CUR/src/${APP}-${VERSION}
+[ ! -d build ] && mkdir build
+cd build
+if [ ! -f ./.configured ]; then
+    echo "  ${YELLOW}Configuring Source Code ${NORMAL}"
+#    CC="gcc -mtune=generic -Os -pipe" CXX="g++ -mtune=generic -Os -pipe" ../configure \
+#        --prefix=/usr --sysconfdir=/etc --enable-gold --enable-ld=default --enable-plugins \
+#        --enable-shared --disable-werror --enable-64-bit-bfd --with-system-zlib >$CUR/.configured.log 2>&1 || exit 1
+
+    ../configure \
+        --prefix=/usr --with-sysroot=/usr --sysconfdir=/usr/local/etc \
+        --disable-nls --target=x86_64-tc-linux-gnu \
+        --disable-werror >$CUR/.configured.log 2>&1 || exit 1
+
+    find . -name Makefile -type f -exec sed -i 's/-g -O2//g' {} \;
+    find . -name Makefile -type f -exec sed -i 's/-O2 -g//g' {} \;
+    touch ./.configured
+fi
+
+if [ ! -f ./.compiled ]; then
+    echo "  ${YELLOW}Compiling Source Code With $(nproc) Threads ${NORMAL}"
+    #make clean >/dev/null 2>&1
+    time make -j$(nproc) tooldir=/usr >$CUR/.compiled.log 2>&1 || exit 1
+    touch ./.compiled
+fi
+
+if [ ! -d $CUR/bin/${APP}-${VERSION} ]; then
+    echo "  ${YELLOW}Installing Source Code ${NORMAL}"
+    time make tooldir=/usr DESTDIR=$CUR/bin/${APP}-${VERSION} install >$CUR/.installed.log 2>&1 || exit 1
+fi
+
+###
+# rm -fv /usr/lib/lib{bfd,ctf,ctf-nobfd,gprofng,opcodes,sframe}.a
+###
+
+
+
+
+
+
+
+
+
+
+
+
+
+

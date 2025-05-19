@@ -1,0 +1,46 @@
+#!/bin/sh
+CUR=$(pwd)
+
+CORES="community main testing"
+
+for CORE in $CORES
+do
+    echo $CORE
+    cd $CUR/$CORE
+
+    # Loop through DIRECTORIES
+    ls -1 > /tmp/FILELIST.txt
+    for ITEM in $(cat /tmp/FILELIST.txt)
+    do
+        cd $CUR/$CORE/$ITEM
+        # Read APKBUILD for makedepends= and depends=, if NONE then
+        MAKEDEPS=""; DEPS=""; ARCH=""
+        echo "Reading $CUR/$CORE/$ITEM/APKBUILD"
+        while read -r line
+        do
+            [ "${line:0:8}" == "depends=" ] && DEPS=${line#*=}
+            [ "${line:0:12}" == "makedepends=" ] && MAKEDEPS=${line#*=}
+            [ "${line:0:5}" == "arch=" ] && ARCH=${line#*=}
+        done < APKBUILD
+
+        cd $CUR/$CORE
+#        if [ ! "${ARCH}" == "all" ]; then
+#            # If NOT arch="all" move to MANUAL
+#            mkdir -p $CUR/_manual/$CORE
+#            echo "ARCH != ALL ($ITEM=$ARCH)"
+#            mv $ITEM $CUR/_manual/$CORE/
+#        else
+            if [ "${DEPS}${MAKEDEPS}" == "" ]; then
+                # Move compliant items to $CUR/NODEPS/$ITEMNAME
+                mkdir -p $CUR/_nodeps/$CORE/
+                echo "NODEPS ${ITEM}=${DEPS}${MAKEDEPS}"
+                mv $ITEM $CUR/_nodeps/$CORE/
+            else
+                # Move everything else to $CUR/DEPS/$ITEMNAME
+                mkdir -p $CUR/_deps/$CORE/
+#                echo "DEPS ${ITEM}"
+                mv $ITEM $CUR/_deps/$CORE/
+            fi
+#        fi
+    done
+done

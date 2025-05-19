@@ -1,0 +1,50 @@
+# Maintainer: team/kde <bribbers@disroot.org>
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-plasma
+pkgname=plasma-activities-stats
+pkgver=6.1.4
+pkgrel=0
+arch="all !armhf" # armhf blocked by qt6-qtdeclarative
+pkgdesc="A library for accessing the usage data collected by the activities system"
+url="https://invent.kde.org/plasma/plasma-activities-stats.git"
+license="LGPL-2.1-only OR LGPL-3.0-only"
+depends_dev="
+	boost-dev
+	graphviz-dev
+	kconfig-dev
+	plasma-activities-dev
+	qt6-qtdeclarative-dev
+	qt6-qttools-dev
+	"
+makedepends="$depends_dev
+	doxygen
+	extra-cmake-modules
+	qt6-qtbase-dev
+	samurai
+	"
+subpackages="$pkgname-dev $pkgname-doc"
+_repo_url="https://invent.kde.org/plasma/plasma-activities-stats.git"
+source="https://download.kde.org/stable/plasma/$pkgver/plasma-activities-stats-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_QCH=ON
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+30e0263715a2a0ae0d51ac5e8e12674f3645a6a4afe4475ef5114a5028141cf00bdd706e4cf703322f14a8b47bafad1728ab28cfad07ac699c0490bccb39b145  plasma-activities-stats-6.1.4.tar.xz
+"

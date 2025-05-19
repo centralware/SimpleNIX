@@ -1,0 +1,63 @@
+#!/bin/sh
+mkdir -p $CUR/ext/usr/local/etc/init.d $CUR/ext/usr/local/etc/dropbear
+cat > $CUR/ext/usr/local/etc/init.d/dropbear << "EOF"
+#!/bin/sh
+NAME=Dropbear
+DESC="SSH server"
+DAEMON=/usr/local/sbin/dropbear
+OPTIONS="-g -b /usr/local/etc/dropbear/banner -R"
+OPTIONS="-R -b /usr/local/etc/dropbear/banner"
+PIDFILE=/var/run/dropbear.pid
+
+case "$1" in
+  start)
+    for i in rsa dss ecdsa ed25519
+      do
+        key=usr/local/etc/dropbear/dropbear_${i}_host_key
+        if [ ! -f /$key ] ; then
+          echo "Generating $NAME $i key... "
+          dropbearkey -t $i -f /$key
+        fi
+      done
+    if [ -f $PIDFILE ] ; then
+      echo "$NAME already running."
+      exit 1
+    fi
+    echo "Starting $DESC: $NAME... "
+    $DAEMON $OPTIONS
+    ;;
+  stop)
+    if [ ! -f $PIDFILE ] ; then
+      echo "$NAME is not running."
+      exit 1
+    fi
+    echo "Stopping $DESC: $NAME... "
+    kill `cat $PIDFILE`
+    ;;
+  restart)
+    if [ ! -f $PIDFILE ] ; then
+      echo "$NAME is not running."
+      exit 1
+    fi
+    echo "Restarting $DESC: $NAME... "
+    kill `cat $PIDFILE`
+    sleep 2
+    $DAEMON $OPTIONS
+    ;;
+  status)
+    if [ -f $PIDFILE ]; then
+        echo "$NAME is running."
+        exit 0
+    else
+        echo "$NAME not running."
+        exit 1
+    fi
+  ;;
+  *)
+    echo ""
+    echo -e "\033[1mUsage:\033[0m /usr/local/etc/init.d/`basename $0` [start|stop|restart|status]"
+    echo ""
+    exit 1
+    ;;
+esac
+exit 0

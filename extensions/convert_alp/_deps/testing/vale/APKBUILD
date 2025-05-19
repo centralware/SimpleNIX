@@ -1,0 +1,35 @@
+# Contributor: Andrej Kolchin <KAAtheWise@protonmail.com>
+# Maintainer: Andrej Kolchin <KAAtheWise@protonmail.com>
+pkgname=vale
+pkgver=3.7.0
+pkgrel=0
+pkgdesc="A markup-aware linter for prose built with speed and extensibility in mind"
+url="https://vale.sh/"
+arch="all"
+license="MIT"
+makedepends="go"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/errata-ai/vale/archive/v$pkgver.tar.gz"
+
+export GOCACHE="${GOCACHE:-"$srcdir/go-cache"}"
+export GOTMPDIR="${GOTMPDIR:-"$srcdir"}"
+export GOMODCACHE="${GOMODCACHE:-"$srcdir/go"}"
+export GOFLAGS="$GOFLAGS -modcacherw"
+
+build() {
+	go build -ldflags "-X main.version=v$pkgver" -o bin/vale ./cmd/vale
+}
+
+check() {
+	go test ./internal/core ./internal/lint ./internal/check ./internal/nlp ./internal/glob ./cmd/vale
+}
+
+package() {
+	install -Dm755 bin/vale -t "$pkgdir"/usr/bin
+
+	install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
+
+sha512sums="
+da7bcf9ba6dd470d2047081193ee1f91f585d29dbd0fcaf4bbab7eef24f80946264db38ba9d1250a7aed1396aaa4a0818056244cdecaeb0b01d3e8e57a3bdc57  vale-3.7.0.tar.gz
+"

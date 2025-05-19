@@ -1,0 +1,50 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-plasma
+pkgname=layer-shell-qt
+pkgver=6.1.4
+pkgrel=0
+pkgdesc="Qt component to allow applications to make use of the Wayland wl-layer-shell protocol"
+# armhf blocked by extra-cmake-modules
+arch="all !armhf"
+url="https://kde.org/plasma-desktop/"
+license="GPL-2.0-or-later AND (GPL-2.0-only OR GPL-3.0-only)"
+depends_dev="
+	qt6-qtdeclarative-dev
+	qt6-qtwayland-dev
+	"
+makedepends="$depends_dev
+	extra-cmake-modules
+	samurai
+	wayland-protocols
+	"
+
+case "$pkgver" in
+	*.90*) _rel=unstable;;
+	*) _rel=stable;;
+esac
+subpackages="$pkgname-dev"
+_repo_url="https://invent.kde.org/plasma/layer-shell-qt.git"
+source="https://download.kde.org/stable/plasma/$pkgver/layer-shell-qt-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+766955fe6012a285dae75116d6cbd312d245e05e422c2cca830834bb6be4ed188568928410936344101078a9af0d73b958a439b00159ac77e2efa4e591285b64  layer-shell-qt-6.1.4.tar.xz
+"

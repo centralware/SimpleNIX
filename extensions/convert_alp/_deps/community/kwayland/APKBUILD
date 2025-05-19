@@ -1,0 +1,54 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-plasma
+pkgname=kwayland
+pkgver=6.1.4
+pkgrel=0
+pkgdesc="Qt-style Client and Server library wrapper for the Wayland libraries"
+arch="all !armhf" # armhf blocked by extra-cmake-modules
+url="https://www.kde.org"
+license="LGPL-2.1-only OR LGPL-3.0-only"
+depends_dev="
+	qt6-qtwayland-dev
+	wayland-dev
+	"
+makedepends="$depends_dev
+	doxygen
+	extra-cmake-modules
+	plasma-wayland-protocols
+	qt6-qtbase-dev
+	qt6-qttools-dev
+	wayland-protocols
+	samurai
+	"
+
+case "$pkgver" in
+	*.90*) _rel=unstable;;
+	*) _rel=stable;;
+esac
+subpackages="$pkgname-dev $pkgname-doc $pkgname-dbg"
+_repo_url="https://invent.kde.org/plasma/kwayland.git"
+source="https://download.kde.org/stable/plasma/$pkgver/kwayland-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_QCH=ON
+	cmake --build build
+}
+
+check() {
+	ctest --test-dir build --output-on-failure
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+926906b9536b53f8443f04d09c8ea5c381031c23920893e6821438181ece12972efa62dc83ede6e268a92a3f5752a8772ee0687b7bfd210dab82cbaab1fbbbfa  kwayland-6.1.4.tar.xz
+"

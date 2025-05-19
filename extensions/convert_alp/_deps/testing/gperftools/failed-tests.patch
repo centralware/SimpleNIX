@@ -1,0 +1,11 @@
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -316,7 +316,7 @@
+ libfake_stacktrace_scope_la_SOURCES = src/fake_stacktrace_scope.cc
+ 
+ ### Unittests
+-TESTS += stacktrace_unittest
++#TESTS += stacktrace_unittest
+ STACKTRACE_UNITTEST_INCLUDES = src/config_for_unittests.h \
+                                src/base/commandlineflags.h \
+                                $(STACKTRACE_INCLUDES) \

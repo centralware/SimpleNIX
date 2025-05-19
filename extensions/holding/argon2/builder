@@ -1,0 +1,91 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+# Contributor: Sören Tempel <soeren+alpine@soeren-tempel.net>
+# Contributor: Corey Oliver <coreyjonoliver@gmail.com>
+# Maintainer: Corey Oliver <coreyjonoliver@gmail.com>
+pkgname=argon2
+_pkgname=phc-winner-argon2
+pkgver=20190702
+pkgrel=5
+pkgdesc="The password hash Argon2, winner of PHC"
+url="https://github.com/P-H-C/phc-winner-argon2"
+arch="all"
+license="Apache-2.0 OR CC0-1.0"
+source="-O $pkgname-$pkgver.tar.gz https://github.com/P-H-C/$_pkgname/archive/$pkgver.tar.gz"
+#builddir="$srcdir/$_pkgname-$pkgver"
+pkgfile="${pkgname}-${pkgver}.tar.gz"
+pkgdir="${pkgname}-${pkgver}"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    echo "Getting current version information..."
+    [ "${pkgver}" == "" ] && get_version
+
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -zxf ${pkgfile}
+        mv ${_pkgname}-${pkgver} ${pkgdir}
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_depends()
+{
+    echo "Loading compilation dependencies"
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    cd $CUR/src/${pkgdir}
+
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) OPTTARGET=none ARGON2_VERSION=$pkgver > $CUR/_compile.log 2>&1 || exit 1
+
+    echo "${CYAN}Testing...${NORMAL}"
+    make OPTTARGET=none test
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make OPTTARGET=none LIBRARY_REL=lib DESTDIR=$CUR/ext install > $CUR/_install.log 2>&1 || exit 1
+
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget
+
+src_build

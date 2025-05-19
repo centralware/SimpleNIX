@@ -1,0 +1,118 @@
+#!/bin/sh
+
+#########################
+## APPLICATION DETAILS ##
+################################################################################
+# Maintainer: Natanael Copa <ncopa@alpinelinux.org>
+pkgname=bzip2
+pkgver=1.0.8
+pkgrel=6
+pkgdesc="A high-quality data compression program"
+url="https://sourceware.org/bzip2/"
+arch="all"
+license="bzip2-1.0.6"
+source="https://sourceware.org/pub/bzip2/bzip2-$pkgver.tar.gz"
+patches="bzip2-1.0.4-makefile-CFLAGS.patch bzip2-1.0.4-man-links.patch bzip2-1.0.2-progress.patch bzip2-1.0.3-no-test.patch saneso.patch bzip2.pc.in"
+pkgfile="${pkgname}-${pkgver}.tar.gz"
+pkgdir="${pkgname}-${pkgver}"
+################################################################################
+
+########################
+# Extension Maintainer #
+################################################################################
+pkg_maintainer="CentralWare Development Centers"
+pkg_maint_contact=""
+################################################################################
+
+get_source()
+{
+    echo "Getting current version information..."
+    [ "${pkgver}" == "" ] && get_version
+
+    if [ ! -f $CUR/src/${pkgfile} ]; then
+        echo "Download SOURCE TARBALL from website (${pkgver})"
+        mkdir -p $CUR/src/raw; cd $CUR/src
+        wget -q --no-check-certificate $source
+    fi
+
+    if [ ! -d $CUR/src/${pkgdir} ]; then
+        cd $CUR/src
+        tar -zxf ${pkgfile}
+        if [ ! -d $CUR/src/raw/${pkgdir} ]; then
+            cp $CUR/src/${pkgdir} $CUR/src/raw/ -R
+        fi
+    fi
+}
+
+src_patches()
+{
+    cd $CUR/src/${pkgdir}
+    for PATCH in $patches
+    do
+        if [ ! "$(echo ${PATCH} | grep ".patch")" == "" ]; then
+            patch -Np1 -i $CUR/_patches/${PATCH}
+        fi
+    done
+}
+
+src_build()
+{
+    get_source
+    [ ! -d $CUR/src/${pkgdir} ] && $(echo "${RED}ERROR! ${MAGENTA}Cannot find working source directory!"; exit 1)
+
+    src_patches
+
+    cd $CUR/src/${pkgdir}
+
+    sed -i \
+        -e 's:\$(PREFIX)/man:\$(PREFIX)/share/man:g' \
+        -e 's:ln -s -f $(PREFIX)/bin/:ln -s :' \
+        Makefile
+
+    sed -i \
+        -e "s:1\.0\.4:$pkgver:" \
+        bzip2.1 bzip2.txt Makefile-libbz2_so manual.*
+
+    echo "${CYAN}Compiling...${NORMAL}"
+    make -j$(nproc) -f Makefile-libbz2_so all > $CUR/_compile1.log 2>&1 || exit 1
+    make -j$(nproc) all > $CUR/_compile2.log 2>&1 || exit 1
+
+    echo "${CYAN}Testing...${NORMAL}"
+    make -j$(nproc) check > $CUR/_testing.log 2>&1 || exit 1
+
+    echo "${CYAN}Preparing...${NORMAL}"
+    make PREFIX=$CUR/ext/usr/local install > $CUR/_install.log 2>&1 || exit 1
+
+#    install -D libbz2.so.$pkgver "$pkgdir"/usr/lib/libbz2.so.$pkgver
+#    ln -s libbz2.so.$pkgver "$pkgdir"/usr/lib/libbz2.so
+#    ln -s libbz2.so.$pkgver "$pkgdir"/usr/lib/libbz2.so.${pkgver%%.*}
+
+#    mkdir -p $CUR/ext/usr/lib/pkgconfig/
+#    sed "s|@VERSION@|$pkgver|" "$srcdir"/bzip2.pc.in > \
+#        "$pkgdir"/usr/lib/pkgconfig/bzip2.pc
+}
+
+
+
+##>> SHARED FUNCTIONS (Update to shared location)
+. ../functions
+
+CPU=$(GetProcessorType)
+
+clear
+CUR=$(pwd)
+ShowTitle
+echo
+echo "${WHITE}Extension ${GREEN}${pkgname}${NORMAL}"
+echo
+
+ExtClean
+ExtLoadQuiet compiling wget bash python3.6
+
+src_build
+
+#libbz2() {
+#    pkgdesc="Shared library for bz2"
+#    mkdir -p "$subpkgdir"/usr/lib
+#    mv "$pkgdir"/usr/lib/*.so.* "$subpkgdir"/usr/lib/
+#}

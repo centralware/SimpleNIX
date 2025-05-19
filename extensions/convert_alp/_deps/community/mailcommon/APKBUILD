@@ -1,0 +1,91 @@
+# Contributor: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: team/kde <bribbers@disroot.org>
+
+# The group tag is just to easily find this APKBUILD by some scripts for automation
+# group=kde-applications
+pkgname=mailcommon
+pkgver=24.05.2
+pkgrel=0
+pkgdesc="KDE PIM library providing support for mail applications"
+# riscv64 disabled due to missing rust in recursive dependency
+# ppc64le, s390x, armhf, riscv64 and armv7 blocked by messagelib -> qt6-qtwebengine
+# loongarch64 blocked by mailimporter
+arch="all !ppc64le !s390x !armhf !riscv64 !armv7 !loongarch64"
+url="https://kontact.kde.org/"
+license="GPL-2.0-or-later"
+# TODO: Consider replacing gnupg with specific gnupg subpackages that mailcommon really needs.
+depends="gnupg"
+depends_dev="
+	akonadi-dev
+	akonadi-mime-dev
+	karchive-dev
+	kcodecs-dev
+	kcompletion-dev
+	kconfig-dev
+	kconfigwidgets-dev
+	kdbusaddons-dev
+	ki18n-dev
+	kiconthemes-dev
+	kio-dev
+	kitemmodels-dev
+	kitemviews-dev
+	kmailtransport-dev
+	ktextwidgets-dev
+	kwidgetsaddons-dev
+	kwindowsystem-dev
+	kxmlgui-dev
+	libkdepim-dev
+	mailimporter-dev
+	messagelib-dev
+	qt6-qtbase-dev
+	qt6-qttools-dev
+	syntax-highlighting-dev
+	"
+makedepends="
+	$depends_dev
+	extra-cmake-modules
+	samurai
+	"
+checkdepends="
+	dbus
+	xvfb-run
+	"
+subpackages="$pkgname-dev $pkgname-lang"
+_repo_url="https://invent.kde.org/pim/mailcommon.git"
+source="https://download.kde.org/stable/release-service/$pkgver/src/mailcommon-$pkgver.tar.xz"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+check() {
+	local skipped_tests="("
+	local tests="
+		akonadi-mysql-filterimportthunderbird
+		akonadi-sqlite-filterimportthunderbird
+		akonadi-sqlite-filterimportbalsa
+		akonadi-mysql-filterimportsylpheed
+		mailcommon-filter-filteractionencrypt
+		akonadi-mysql-foldertreewidget
+		akonadi-sqlite-foldertreewidget
+		akonadi-mysql-favorites
+		akonadi-sqlite-favorites
+		"
+	for test in $tests; do
+		skipped_tests="$skipped_tests|$test"
+	done
+	skipped_tests="$skipped_tests)test"
+	dbus-run-session xvfb-run ctest --test-dir build --output-on-failure -E "$skipped_tests"
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+sha512sums="
+adf287b1ece2ed41d9a2498c72597ccb7798a5c051b71afd6b5ae252e0e67a75e3fa6526879acd0b65cf424a1052c2e0cf4c4ef5bd3bdd5200e3e8e342f20033  mailcommon-24.05.2.tar.xz
+"
